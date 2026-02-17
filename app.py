@@ -125,11 +125,8 @@ class MainWindow(QMainWindow):
 		self.initialize()
 
 
-
-
-
 	def initialize(self):
-		"""."""
+		"""Método principal para gestionar la descarga y procesamiento de los excel."""
 
 		brands = ('etma', 'hh')
 		
@@ -161,7 +158,7 @@ class MainWindow(QMainWindow):
 
 
 	def process_brand(self, html, brand):
-		"""."""
+		"""Busca la URL del excel en el html, lo descarga y lo procesa."""
 
 		# Busco link del excel
 		excel_url = self.get_excel_url_tdc(html, brand)
@@ -297,7 +294,7 @@ class MainWindow(QMainWindow):
 
 
 	def try_local_list(self, brand):
-		"""."""
+		"""Comprueba si existe una excel local previamente descargado y lo procesa."""
 
 		excel_file_path = self.search_existing_excel(brand)
 		if not excel_file_path:
@@ -320,6 +317,8 @@ class MainWindow(QMainWindow):
 
 
 	def search_existing_excel(self, brand):
+		"""Busca un excel previo en la carpeta de la marca, y si existe, retorna su ruta."""
+		
 		base_path = Path(os.getenv('APPDATA')) / 'PrecioFacil' / 'listas' / brand
 
 		if not base_path.exists():
@@ -428,7 +427,7 @@ class MainWindow(QMainWindow):
 			for cell in row:
 				value = str(cell.value)
 				if re.findall(r'\d{1,2}/\d{1,2}/\d{2,4}', value) and ('valid' in value or 'válid' in value):
-					label.setText('📆 ' + value)
+					label.setText('📆 ' + value.replace('validos', 'válidos'))
 					return
 
 
