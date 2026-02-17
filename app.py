@@ -3,6 +3,8 @@ import requests
 import bs4
 import tempfile
 from pathlib import Path
+import os
+from urllib.parse import urlparse, unquote
 import re
 from openpyxl.utils import get_column_letter
 from PyQt6.QtWidgets import QMainWindow, QApplication, QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QMessageBox
@@ -11,7 +13,6 @@ from PyQt6.QtGui import QIcon, QFont
 from PyQt6 import uic
 import sys
 
-# URL_EXCEL = 'https://comunicaciones.tiendadecardan.com.ar/hubfs/LISTA%20DE%20PRECIO%20HH%20ENERO%206-1-2026.xlsx?hsLang=es-ar'
 
 SETTINGS = QSettings('COMET', 'PrecioFacil')
 
@@ -92,32 +93,6 @@ MOST_USED_PRODUCTS_ETMA = {
 }
 
 
-def get_excel_link(page_url):
-	html = requests.get(page_url).text
-	soup = bs4.BeautifulSoup(html, 'html.parser')
-
-	h1 = soup.select()
-
-
-
-
-
-# def download_excel_file(url):
-# 	response = requests.get(url, timeout=30)
-# 	response.raise_for_status()
-
-# 	temp_dir = Path(tempfile.gettempdir())
-# 	file_path = temp_dir / "lista_precios.xlsx"
-
-# 	with open(file_path, "wb") as f:
-# 		f.write(response.content)
-
-# 	return file_path
-
-
-# ruta_excel = download_excel_file(URL_EXCEL)
-# print("Archivo descargado en:", ruta_excel)
-
 
 class MainWindow(QMainWindow):
 	def __init__(self):
@@ -125,6 +100,10 @@ class MainWindow(QMainWindow):
 
 		# Cargo la UI
 		uic.loadUi('ui/app.ui', self)
+
+		# Inicializo variables
+		self.all_products_hh = None
+		self.all_products_etma = None
 
 		# Conecto señales
 		self.pushButton_theme.clicked.connect(self.change_theme)
@@ -146,101 +125,219 @@ class MainWindow(QMainWindow):
 		self.initialize()
 
 
-	# def get_excels(self):
 
 
 
 	def initialize(self):
 		"""."""
 
-		# Obtengo URL de TDC donde se encuentran las listas de precios
-		price_lists_url = SETTINGS.value('price_lists_url', '', type=str)
-		if not price_lists_url:
+		brands = ('etma', 'hh')
+		
+		# Recupero la URL de las listas de precios de TDC
+		price_lists_url_tdc = self.get_url_from_settings('tdc')
+		if not price_lists_url_tdc:
 			QMessageBox.warning(
 				self,
-				'Sin URL de listas',
-				'Debe cargar una URL válida para buscar las listas.'
+				'Error',
+				'No hay URL configurada para Tienda del Cardan'
 			)
+			self.try_local_lists(brands)
 			return
 
-		# Obtengo el HTML para buscar los links de los excel
+		# Obtengo el HTML de esa URL
 		try:
-			response = requests.get(price_lists_url, timeout=10)
-			response.raise_for_status()
-			html = response.text
+			html = self.download_html(price_lists_url_tdc)
+		except Exception as e:
+			QMessageBox.warning(
+				self,
+				'Error',
+				f'No se pudo acceder a la página de Tienda Del Cardan:\n{e}')
+			self.try_local_lists(brands)
+			return
+
+		# Tengo HTML válido: proceso cada marca
+		for brand in brands:
+			self.process_brand(html, brand)
+
+
+	def process_brand(self, html, brand):
+		"""."""
+
+		# Busco link del excel
+		excel_url = self.get_excel_url_tdc(html, brand)
+		if not excel_url:
+			QMessageBox.warning(
+				self,
+				'Advertencia',
+				f'No se encontró link para la lista de {brand.upper()}')
+			self.try_local_list(brand)
+			return
+
+		# Descargo el excel
+		try:
+			excel_file_path = self.download_excel_file_tdc(excel_url, brand)
+		except Exception as e:
+			QMessageBox.warning(
+				self,
+				'Advertencia',
+				f'No se pudo descargar la lista de {brand.upper()}:\n{e}')
+			self.try_local_list(brand)
+			return
+
+		# Proceso excel descargado
+		try:
+			self.process_excel_tdc(excel_file_path, brand)
 		except Exception as e:
 			QMessageBox.critical(
 				self,
 				'Error',
-				f'No se pudo acceder a la página de las listas de precios\nde Tienda Del Cardan'
+				f'Error procesando lista descargada de {brand.upper()}:\n{e}'
+			)
+
+
+	def get_excel_url_tdc(self, html, brand):
+		"""Obtiene en TDC el link actual del excel correspondiente."""
+
+		soup = bs4.BeautifulSoup(html, 'html.parser')
+
+		# Busco el título correcto
+		h1 = soup.find(
+			'h1', 
+			string=lambda s: s and s.strip().upper() in (f'LISTA DE PRECIO {brand.upper()}', f'LISTA DE PRECIOS {brand.upper()}')
+		)
+		if not h1:
+			return None
+
+		# Subo al bloque contenedor
+		bloque = h1.find_parent('div', class_='widget-span')
+		if not bloque:
+			return None
+
+		# Busco el link dentro del bloque
+		url = bloque.find_next('a', href=True)
+
+		return url['href'] if url else None
+
+
+	def download_excel_file_tdc(self, url, brand):
+		"""Descarga el excel en la carpeta correspondiente."""
+
+		# Obtengo la ruta de la carpeta de destino
+		base_path = Path(os.getenv('APPDATA')) / 'PrecioFacil' / 'listas' / brand
+		base_path.mkdir(parents=True, exist_ok=True)
+
+		# Obtengo el nombre original del archivo descargado
+		excel_original_name = os.path.basename(urlparse(url).path)
+		excel_original_name = unquote(excel_original_name) # Quito los %20 (espacios)
+
+		# Obtengo la ruta completa
+		excel_file_path = base_path / excel_original_name
+
+		response = requests.get(url, timeout=10)
+		response.raise_for_status()
+
+		# Si hay un excel previo, lo borro (no quiero que se acumulen, siempre solo 1)
+		for old_excel_file in base_path.glob('*.xlsx'):
+			old_excel_file.unlink()
+
+		# Guardo el nuevo excel
+		with open(excel_file_path, 'wb') as f:
+			f.write(response.content)
+		
+		return excel_file_path
+
+
+	def process_excel_tdc(self, excel_file_path, brand):
+		"""Lee el excel y carga los productos en la interfaz."""
+
+		# Mapeo de marcas a su correspondiente widget en la UI
+		bmap = {
+			'hh': {
+				'label': self.label_validity_date_hh,
+				'prods': self.all_products_hh,
+				'table': self.tableWidget_search_hh,
+				'combo': self.comboBox_most_used_hh,
+				'most': MOST_USED_PRODUCTS_HH
+			},
+			'etma': {
+				'label': self.label_validity_date_etma,
+				'prods': self.all_products_etma,
+				'table': self.tableWidget_search_etma,
+				'combo': self.comboBox_most_used_etma,
+				'most': MOST_USED_PRODUCTS_ETMA
+			}
+		}
+
+		# Creo workbook y extraigo la hoja de productos
+		wb = openpyxl.load_workbook(excel_file_path)
+		sheet = wb[wb.sheetnames[0]]
+
+		# Busco letras de columnas de producto
+		header_cols = self.search_header_cols(sheet)
+
+		# Busco número de fila de primer producto
+		first_row = self.search_first_row(sheet, header_cols['price_col'])
+
+		# Muestro fecha de validez de precios de cada hoja
+		self.show_validity_date(sheet, bmap[brand]['label'])
+
+		# Paso los productos a un diccionario
+		bmap[brand]['prods'] = self.obtain_products(sheet, first_row, header_cols)
+
+		# Listo todos los productos
+		self.list_products(bmap[brand]['prods'], bmap[brand]['table'])
+
+		# Listo los más usados
+		self.load_more_used(bmap[brand]['combo'], bmap[brand]['prods'], bmap[brand]['most'])
+
+
+	def try_local_lists(self, brands):
+		for brand in brands:
+			self.try_local_list(brand)
+
+
+	def try_local_list(self, brand):
+		"""."""
+
+		excel_file_path = self.search_existing_excel(brand)
+		if not excel_file_path:
+			QMessageBox.information(
+				self,
+				'Información',
+				f'No hay lista previamente descargada para {brand.upper()}'
 			)
 			return
 
-
-		for brand in ('etma', 'hh'):
-			link = self.get_excel_link_tdc(html, brand)
-
-
-
-
-
-		# Creo los workbook y extraigo las hojas de productos
-		wb_hh = openpyxl.load_workbook('LISTA DE PRECIO HH ENERO 6-1-2026.xlsx')
-		wb_etma = openpyxl.load_workbook('LISTA DE PRECIO ETMA ENERO 6-1-2026.xlsx')
-		sheet_hh = wb_hh[wb_hh.sheetnames[0]]
-		sheet_etma = wb_etma[wb_etma.sheetnames[0]]
-
-		# Busco letras de columnas de producto en cada hoja
-		header_cols_hh = self.search_header_cols(sheet_hh)
-		header_cols_etma = self.search_header_cols(sheet_etma)
-
-		# Busco número de fila de primer producto en cada hoja
-		first_row_hh = self.search_first_row(sheet_hh, header_cols_hh['price_col'])
-		first_row_etma = self.search_first_row(sheet_etma, header_cols_etma['price_col'])
-
-		# Muestro fecha de validez de precios de cada hoja
-		self.show_validity_date(sheet_hh, self.label_validity_date_hh)
-		self.show_validity_date(sheet_etma, self.label_validity_date_etma)
-
-		# Paso a diccionarios los productos de cada hoja
-		self.all_products_hh = self.obtain_products(sheet_hh, first_row_hh, header_cols_hh)
-		self.all_products_etma = self.obtain_products(sheet_etma, first_row_etma, header_cols_etma)
-
-		self.list_products(self.all_products_hh, self.tableWidget_search_hh)
-		self.list_products(self.all_products_etma, self.tableWidget_search_etma)
-
-		self.load_more_used(self.comboBox_most_used_hh, self.all_products_hh, MOST_USED_PRODUCTS_HH)
-		self.load_more_used(self.comboBox_most_used_etma, self.all_products_etma, MOST_USED_PRODUCTS_ETMA)
+		# Proceso excel previo
+		try:
+			self.process_excel_tdc(excel_file_path, brand)
+		except Exception as e:
+			QMessageBox.critical(
+				self,
+				'Error',
+				f'Error procesando lista previa de {brand.upper()}:\n{e}'
+			)
 
 
-	def get_excel_link_tdc(html, brand):
-    	"""
-    	Obtiene en TDC el link actual del excel de la lista de precios de 
-    	la marca que se le pasa.
-    	"""
+	def search_existing_excel(self, brand):
+		base_path = Path(os.getenv('APPDATA')) / 'PrecioFacil' / 'listas' / brand
 
-	    soup = bs4.BeautifulSoup(html, 'html.parser')
+		if not base_path.exists():
+			return None
 
-	    
-        # Busco el título correcto
-        h1 = soup.find(
-            'h1', 
-            string=lambda s: s and s.strip().upper() in (f'LISTA DHE PRECIO {brand}', f'LISTA DE PRECIOS {brand}')
-        )
-        if not h1:
-            raise ValueError(f'No se encontró la lista para {brand.upper()}')
-            continue
+		excel_files = list(base_path.glob('*.xlsx'))
 
-        # Subo al bloque contenedor
-        bloque = h1.find_parent('div', class_='widget-span')
+		return excel_files[0] if excel_files else None
 
-        # Busco el link dentro del bloque
-        link = bloque.find_next('a', href=True)
-        if not link:
-            # raise ValueError(f'No se encontró el link de descarga para {brand.upper()}')
-            continue
 
-        return link['href']
+	def get_url_from_settings(self, brand):
+		return SETTINGS.value(f'price_lists/{brand}', '', type=str)
+
+
+	def download_html(self, url):
+		response = requests.get(url, timeout=10)
+		response.raise_for_status()
+		return response.text
 
 
 	def apply_theme(self, theme):
@@ -318,7 +415,7 @@ class MainWindow(QMainWindow):
 		for cell in sheet[price_col]:
 			if cell.value is not None:
 				try:
-					float(cell.value.replace('.', ''). replace(',', '.'))
+					float(cell.value.replace('.', '').replace(',', '.'))
 					return cell.row
 				except (ValueError, TypeError):
 					continue
@@ -499,11 +596,13 @@ class ConfigurationDialog(QDialog):
 
 
 	def load_config(self):
-		self.lineEdit_url.setText(SETTINGS.value('price_lists_url', '', type=str))
+		self.lineEdit_url_tdc.setText(SETTINGS.value('price_lists/tdc', '', type=str))
+		self.lineEdit_url_camba.setText(SETTINGS.value('price_lists/camba', '', type=str))
 
 
 	def save_config(self):
-		SETTINGS.setValue('price_lists_url', self.lineEdit_url.text())
+		SETTINGS.setValue('price_lists/tdc', self.lineEdit_url_tdc.text())
+		SETTINGS.setValue('price_lists/camba', self.lineEdit_url_camba.text())
 		self.new_price_lists_url = True # Para recargar al cerrar configuración
 		self.close()
 
