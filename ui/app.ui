@@ -39,7 +39,7 @@
        </font>
       </property>
       <property name="currentIndex">
-       <number>3</number>
+       <number>2</number>
       </property>
       <property name="iconSize">
        <size>
@@ -784,6 +784,12 @@
                    <width>456</width>
                    <height>0</height>
                   </size>
+                 </property>
+                 <property name="font">
+                  <font>
+                   <pointsize>11</pointsize>
+                   <bold>false</bold>
+                  </font>
                  </property>
                 </widget>
                </item>

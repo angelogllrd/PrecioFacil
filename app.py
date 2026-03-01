@@ -8,6 +8,7 @@ from io import BytesIO
 import os
 from urllib.parse import urlparse, unquote
 import re
+from datetime import datetime
 from openpyxl.utils import get_column_letter
 from PyQt6.QtWidgets import QMainWindow, QApplication, QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QMessageBox
 from PyQt6.QtCore import Qt
@@ -26,19 +27,24 @@ class MainWindow(QMainWindow):
 		uic.loadUi('ui/app.ui', self)
 
 		# Inicializo variables
-		self.all_products_hh = None
-		self.all_products_etma = None
-		self.all_products_camba = None
-		self.camba_last_date = None
+		# self.is_local_list_hh = False
+		# self.is_local_list_etma = False
+		# self.is_local_list_camba = False
 
-		# Conecto señales
+		# Señales de pushbuttons
 		self.pushButton_theme.clicked.connect(self.change_theme)
 		self.pushButton_config.clicked.connect(self.open_config)
 		self.pushButton_about.clicked.connect(self.open_about)
+
+		# Señales de comboboxes
 		self.comboBox_most_used_hh.activated.connect(self.load_category)
 		self.comboBox_most_used_etma.activated.connect(self.load_category)
+		self.comboBox_most_used_camba.activated.connect(self.load_category)
+
+		# Señales de lineedits
 		self.lineEdit_search_hh.textEdited.connect(self.filter_products)
 		self.lineEdit_search_etma.textEdited.connect(self.filter_products)
+		self.lineEdit_search_camba.textEdited.connect(self.filter_products)
 
 		# Configuro headers de tablas
 		self.format_headers()
@@ -62,6 +68,7 @@ class MainWindow(QMainWindow):
 	def initialize(self):
 		"""Método principal para gestionar la descarga y procesamiento de las listas."""
 
+		# Inicializo variables
 		suppliers = {
 			'tdc': {
 				'name': 'Tienda del Cardan',
@@ -72,36 +79,47 @@ class MainWindow(QMainWindow):
 				'brands': ('camba',)
 			}
 		}
-		
+		self.all_products_hh = []
+		self.all_products_etma = []
+		self.all_products_camba = []
+		self.camba_last_date = None
+		self.report = [] # acumulador de mensajes
+
+		# Vacio todo (por si se están recargando listas)
+		self.empty_everything()
+
 		for supplier, config in suppliers.items():
 			
 			# Recupero la URL del proveedor
 			price_lists_url = self.get_url_from_settings(supplier)
 			if not price_lists_url:
-				QMessageBox.warning(
-					self,
-					'Configuración faltante',
-					f'No hay URL configurada para {config["name"]}'
+				self.try_local_lists(
+					config['brands'],
+					f'Sin URL configurada para <i>{config['name']}</i>'
 				)
-				self.try_local_lists(config['brands'])
 				continue
 
 			# Obtengo el HTML de esa URL
 			try:
 				html = self.download_html(price_lists_url)
-			except Exception as e:
-				QMessageBox.warning(
-					self,
-					'Error de conexión',
-					f'No se pudo acceder a la página de {config["name"]}:\n{e}'
+			except Exception:
+				self.try_local_lists(
+					config['brands'], 
+					f'Imposible acceder a <i>{config['name']}</i>'
 				)
-				self.try_local_lists(config['brands'])
 				continue
 
 			# Tengo HTML válido: proceso cada marca
 			for brand in config['brands']:
 				self.process_brand(html, brand)
 
+		# Muestro el reporte
+		if self.report:
+			QMessageBox.information(
+				self,
+				'Información de la carga',
+				'<br>'.join(self.report)
+			)
 
 	# PROCESAMIENTO POR MARCA
 	# ------------------------------------------------------------------------------------------
@@ -112,39 +130,44 @@ class MainWindow(QMainWindow):
 		# Busco link de la lista
 		list_url = self.get_list_url_from_html(html, brand)
 		if not list_url:
-			QMessageBox.warning(
-				self,
-				'Advertencia',
-				f'No se encontró link para la lista de {brand.upper()}')
-			self.try_local_list(brand)
+			local_status = self.try_local_list(brand)
+			msg = self.build_message(brand, local_status, 'No se encontró link')
+			self.report.append(msg)
 			return
 
 		# Descargo la lista
 		try:
 			excel_file_path = self.download_excel_file(list_url, brand)
-		except Exception as e:
-			QMessageBox.warning(
-				self,
-				'Advertencia',
-				f'No se pudo descargar la lista de {brand.upper()}:\n{e}')
-			self.try_local_list(brand)
+
+			# Tengo archivo nuevo: si es Camba, actualizo fecha de validez
+			if brand == 'camba':
+				# Si no encontré en el HTML, busco en nombre de archivo
+				if not self.camba_last_date:
+					self.camba_last_date = self.extract_date_from_filename(excel_file_path)
+
+				# Como último recurso, tomo fecha actual
+				if not self.camba_last_date:
+					self.camba_last_date = datetime.now().strftime('%d/%m/%Y')
+
+				SETTINGS.setValue('camba_last_date', self.camba_last_date)
+
+		except Exception:
+			local_status = self.try_local_list(brand)
+			msg = self.build_message(brand, local_status, 'No se pudo descargar')
+			self.report.append(msg)
 			return
 
 		# Proceso excel descargado
 		try:
 			self.process_excel(excel_file_path, brand)
-		except Exception as e:
-			QMessageBox.critical(
-				self,
-				'Error',
-				f'Error procesando lista descargada de {brand.upper()}:\n{e}'
-			)
+		except Exception:
+			self.report.append(f'❌ <b>{brand.upper()}</b>: Error procesando lista descargada.')
 
 
 	# FALLBACKS (hubo error y se debe buscar lista local descargada previamente)
 	# ------------------------------------------------------------------------------------------
 
-	def try_local_lists(self, brands):
+	def try_local_lists(self, brands, reason):
 		"""
 		Fallback general llamado cuando:
 		  * No hay URL del proveedor.
@@ -152,12 +175,14 @@ class MainWindow(QMainWindow):
 		Llama al fallback de marca por cada marca del proveedor.
 		"""
 		for brand in brands:
-			self.try_local_list(brand)
+			local_status = self.try_local_list(brand)
+			msg = self.build_message(brand, local_status, reason)
+			self.report.append(msg)
 
 
 	def try_local_list(self, brand):
 		"""
-		Fallback por marca llamado cuando hay:
+		Fallback por marca llamado cuando:
 		  * No se encontró el link de la lista en el HTML.
 		  * No se pudo descargar el excel.
 		Comprueba si existe una excel local previamente descargado y lo procesa.
@@ -165,22 +190,14 @@ class MainWindow(QMainWindow):
 
 		excel_file_path = self.search_existing_excel(brand)
 		if not excel_file_path:
-			QMessageBox.information(
-				self,
-				'Información',
-				f'No hay lista previamente descargada para {brand.upper()}'
-			)
-			return
+			return 'local_not_found'
 
 		# Proceso excel previo
 		try:
 			self.process_excel(excel_file_path, brand)
-		except Exception as e:
-			QMessageBox.critical(
-				self,
-				'Error',
-				f'Error procesando lista previa de {brand.upper()}:\n{e}'
-			)
+			return 'local_used'
+		except Exception:
+			return 'local_error'
 
 
 	#  AUXILIARES
@@ -194,6 +211,33 @@ class MainWindow(QMainWindow):
 		response = requests.get(url, timeout=10)
 		response.raise_for_status()
 		return response.text
+
+
+	def build_message(self, brand, local_status, reason):
+		"""Construye el mensaje para el reporte en base al resultado local."""
+
+		msg_dict = {
+			'local_used': {
+				'sym': '✅',
+				'txt': 'Usando lista local'
+			},
+			'local_not_found': {
+				'sym': '❌',
+				'txt': 'Lista local no encontrada'
+			},
+			'local_error': {
+				'sym': '❌',
+				'txt': 'Error al procesar lista local'
+			}
+		}
+
+		msg = (
+			f'{msg_dict[local_status]["sym"]} <b>{brand.upper()}</b>: '
+			f'{reason}. '
+			f'{msg_dict[local_status]["txt"]}.'
+		)
+
+		return msg
 
 
 	def get_list_url_from_html(self, html, brand):
@@ -302,21 +346,18 @@ class MainWindow(QMainWindow):
 		bmap = {
 			'hh': {
 				'label': self.label_validity_date_hh,
-				'prods': self.all_products_hh,
 				'table': self.tableWidget_search_hh,
 				'combo': self.comboBox_most_used_hh,
 				'most': MOST_USED_PRODUCTS_HH
 			},
 			'etma': {
 				'label': self.label_validity_date_etma,
-				'prods': self.all_products_etma,
 				'table': self.tableWidget_search_etma,
 				'combo': self.comboBox_most_used_etma,
 				'most': MOST_USED_PRODUCTS_ETMA
 			},
 			'camba': {
 				'label': self.label_validity_date_camba,
-				'prods': self.all_products_camba,
 				'table': self.tableWidget_search_camba,
 				'combo': self.comboBox_most_used_camba,
 				'most': MOST_USED_PRODUCTS_CAMBA
@@ -333,17 +374,23 @@ class MainWindow(QMainWindow):
 		# Busco número de fila de primer producto
 		first_row = self.search_first_row(sheet, header_cols['price_col'])
 
-		# Muestro fecha de validez de precios de cada hoja
+		# Muestro fecha de validez de precios
 		self.show_validity_date(sheet, bmap[brand]['label'])
 
 		# Paso los productos a un diccionario
-		bmap[brand]['prods'] = self.obtain_products(sheet, first_row, header_cols)
+		products = self.obtain_products(sheet, first_row, header_cols, brand)
+		if brand == 'hh':
+			self.all_products_hh = products
+		elif brand == 'etma':
+			self.all_products_etma = products
+		elif brand == 'camba':
+			self.all_products_camba = products
 
 		# Listo todos los productos
-		self.list_products(bmap[brand]['prods'], bmap[brand]['table'])
+		self.list_products(products, bmap[brand]['table'])
 
 		# Listo los más usados
-		# self.load_more_used(bmap[brand]['combo'], bmap[brand]['prods'], bmap[brand]['most'])
+		self.load_more_used(bmap[brand]['combo'], products, bmap[brand]['most'])
 
 
 	def search_header_cols(self, sheet):
@@ -351,10 +398,12 @@ class MainWindow(QMainWindow):
 
 		for row in sheet['A1':'E20']:
 			for cell in row:
+				# Encuentro la fila de encabezados
 				if str(cell.value).strip().lower() in ('codigo', 'código', 'cod', 'cód'):
 					header_row = cell.row
 					code_col = get_column_letter(cell.column)
 
+					# Recorro fila de encabezados e identifico cada uno
 					for header_cell in sheet[header_row]:
 						print(get_column_letter(header_cell.column))
 						value = str(header_cell.value).strip().lower()
@@ -367,7 +416,7 @@ class MainWindow(QMainWindow):
 
 					return {
 						'code_col': code_col,
-						'subcategory_col': subcategory_col if subcategory_col else None, # camba no tiene
+						'subcategory_col': subcategory_col,
 						'description_col': description_col,
 						'price_col': price_col
 					}
@@ -377,7 +426,13 @@ class MainWindow(QMainWindow):
 		"""Retorna la fila donde comienzan los productos."""
 
 		for cell in sheet[price_col]:
-			if cell.value is not None:
+				value = cell.value
+
+				# Evito trabajo innecesario (evito convertir None)
+				if value is None:
+					continue
+
+				# Compruebo si es un monto
 				try:
 					float(str(cell.value).replace('.', '').replace(',', '.'))
 					return cell.row
@@ -385,19 +440,26 @@ class MainWindow(QMainWindow):
 					continue
 
 
-	def obtain_products(self, sheet, first_row, header_cols):
+	def obtain_products(self, sheet, first_row, header_cols, brand):
 		"""Crea lista de diccionarios de productos para filtrar."""
 
 		products = []
 		for row in range(first_row, sheet.max_row + 1):
 			if self.is_valid_row(sheet, row, header_cols):
+				# Formateo precios de tipo float (necesario en CAMBA)
 				price = sheet[header_cols['price_col'] + str(row)].value
 				if isinstance(price, float):
-					# Convierto float a formato de moneda argentina
 					price = f'{price:,}'.replace('.', '_').replace(',', '.').replace('_', ',')
+
+				# Mapeo categoría si es CAMBA
+				subcategory = sheet[header_cols['subcategory_col'] + str(row)].value
+				if brand == 'camba':
+					subcategory = RUBROS_CAMBA.get(subcategory, 'CATEGORIA NO DEFINIDA')
+
+				# Creo el diccionario y lo agrego a la lista
 				product = {
 					'code': sheet[header_cols['code_col'] + str(row)].value,
-					'subcategory': sheet[header_cols['subcategory_col'] + str(row)].value if header_cols['subcategory_col'] else '',
+					'subcategory': subcategory,
 					'description': sheet[header_cols['description_col'] + str(row)].value,
 					'price': f'$ {price}'
 				}
@@ -459,25 +521,38 @@ class MainWindow(QMainWindow):
 
 		# Fijo ancho de "CÓDIGO", "SUBCATEGORÍA" y "PRECIO + IVA" y hago que "DESCRIPCIÓN" ocupe el resto
 		for table in tables:
-			table.setColumnWidth(0, 150)
-			table.setColumnWidth(1, 250)
+			table.setColumnWidth(0, 110)
+			table.setColumnWidth(1, 400)
 			table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-			table.setColumnWidth(3, 200)
+			table.setColumnWidth(3, 160)
 
 
 	def show_validity_date(self, sheet, label):
 		"""Muestra la fecha de validez de precios presente en la hoja."""
 
+		# CAMBA
 		if label is self.label_validity_date_camba:
-			date = '¿?' if self.camba_last_date is None else self.camba_last_date
-			label.setText(f'📆 Precios válidos para el: {date}')
-		else:
-			for row in sheet['A1':'E20']:
-				for cell in row:
-					value = str(cell.value)
-					if re.findall(r'\d{1,2}/\d{1,2}/\d{2,4}', value) and ('valid' in value or 'válid' in value):
-						label.setText('📆 ' + value.replace('validos', 'válidos'))
-						return
+			stored_date = SETTINGS.value('camba_last_date', '', type=str)
+			if stored_date:
+				label.setText(f'📆 Precios válidos para el: {stored_date}')
+			else:
+				label.setText('📆 Fecha no disponible')
+			return
+
+		# HH, ETMA
+		for row in sheet['A1':'E20']:
+			for cell in row:
+				# Evito trabajo innecesario (no analizo celdas vacías)
+				if not cell.value:
+					continue
+
+				# Busco la fecha en la celda
+				value = str(cell.value)
+				if re.search(r'\d{1,2}/\d{1,2}/\d{2,4}', value) and ('valid' in value or 'válid' in value):
+					label.setText('📆 ' + value.replace('validos', 'válidos'))
+					return
+
+		label.setText('📆 Fecha no encontrada')
 
 
 	def load_more_used(self, combo_box, all_products, most_used_products):
@@ -490,6 +565,7 @@ class MainWindow(QMainWindow):
 		for category, products_in_category in most_used_products.items():
 			products = []
 			for product_code, product_description in products_in_category.items():
+				# Busco el producto dentro de todos los productos
 				for product in all_products:
 					if product_code.startswith('CR1024') and product_code != product['code']: # Evita duplicados en este caso particular
 						continue
@@ -511,12 +587,16 @@ class MainWindow(QMainWindow):
 		"""Lista los productos mas usados de la categoría seleccionada."""
 
 		# Determino si se seleccionó categoría en HH o en ETMA, y asigno variables
-		if self.sender() is self.comboBox_most_used_hh:
+		sender = self.sender()
+		if sender is self.comboBox_most_used_hh:
 			table_widget = self.tableWidget_defaults_hh
 			combo_box = self.comboBox_most_used_hh
-		else:
+		elif sender is self.comboBox_most_used_etma:
 			table_widget = self.tableWidget_defaults_etma
 			combo_box = self.comboBox_most_used_etma
+		else:
+			table_widget = self.tableWidget_defaults_camba
+			combo_box = self.comboBox_most_used_camba
 
 		# Vacio la tabla y listo los productos
 		table_widget.setRowCount(0)
@@ -526,13 +606,22 @@ class MainWindow(QMainWindow):
 	def filter_products(self, query):
 		"""Filtra la lista de productos al escribir en el buscador."""
 
+		sender = self.sender()
+
 		# Determino si se buscó en HH o en ETMA, y asigno variables
-		if self.sender() is self.lineEdit_search_hh:
+		if sender is self.lineEdit_search_hh:
 			table_widget = self.tableWidget_search_hh
 			all_products = self.all_products_hh
-		else:
+		elif sender is self.lineEdit_search_etma:
 			table_widget = self.tableWidget_search_etma
 			all_products = self.all_products_etma
+		else:
+			table_widget = self.tableWidget_search_camba
+			all_products = self.all_products_camba
+
+		# Evito lógica innecesaria si no se cargaron productos en la marca
+		if not all_products:
+			return
 
 		# Normalizo el texto del filtro
 		query = ' '.join(query.split()).lower()
@@ -561,6 +650,10 @@ class MainWindow(QMainWindow):
 			table_widget.setItem(row, 0, code_item)
 
 			subcat_item = QTableWidgetItem(product['subcategory'])
+			if table_widget is self.tableWidget_search_camba:
+				font = subcat_item.font()
+				font.setPointSize(9) # tamaño deseado
+				subcat_item.setFont(font)
 			table_widget.setItem(row, 1, subcat_item)
 
 			descr_item = QTableWidgetItem(product['description'])
@@ -582,6 +675,49 @@ class MainWindow(QMainWindow):
 			search_tables[table_widget].setText(f'{quantity} producto{s} encontrado{s}')
 
 
+	def extract_date_from_filename(self, path):
+		"""Extrae la fecha del nombre del archivo excel de Camba."""
+		match = re.search(r'\d{2}-\d{2}-\d{4}', path)
+		if match:
+			return match.group().replace('-', '/')
+		return None
+
+
+	def empty_everything(self):
+		"""Vacia la interfaz para la recarga de listas."""
+
+		# Junto widgets que usan clear()
+		widgets = {
+			self.lineEdit_search_hh,
+			self.lineEdit_search_etma,
+			self.lineEdit_search_camba,
+			self.label_search_hh,
+			self.label_search_etma,
+			self.label_search_camba,
+			self.label_validity_date_hh,
+			self.label_validity_date_etma,
+			self.label_validity_date_camba,
+			self.comboBox_most_used_hh,
+			self.comboBox_most_used_etma,
+			self.comboBox_most_used_camba
+		}
+
+		tables = (
+			self.tableWidget_search_hh,
+			self.tableWidget_defaults_hh,
+			self.tableWidget_search_etma,
+			self.tableWidget_defaults_etma,
+			self.tableWidget_search_camba,
+			self.tableWidget_defaults_camba
+		)
+
+		for widget in widgets:
+			widget.clear() 
+
+		for table in tables:
+			table.setRowCount(0)
+
+
 	def open_config(self):
 		"""Abre un dialogo para editar la configuración."""
 
@@ -590,8 +726,7 @@ class MainWindow(QMainWindow):
 
 		# Verifico si recargar
 		if dialog.new_price_lists_url:
-			pass
-			# self.cargarClientes()
+			self.initialize()
 
 
 	def open_about(self):
