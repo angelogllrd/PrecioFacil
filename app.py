@@ -106,7 +106,6 @@ class MainWindow(QMainWindow):
 		self.all_products_hh = []
 		self.all_products_etma = []
 		self.all_products_camba = []
-		self.camba_last_date = None
 		self.report = [] # acumulador de mensajes
 
 		# Vacio todo (por si se están recargando listas)
@@ -115,8 +114,8 @@ class MainWindow(QMainWindow):
 		for supplier, config in suppliers.items():
 			
 			# Recupero la URL del proveedor
-			price_lists_url = self.get_url_from_settings(supplier)
-			if not price_lists_url:
+			supplier_url = self.get_url_from_settings(supplier)
+			if not supplier_url:
 				self.try_local_lists(
 					config['brands'],
 					f'Sin URL configurada para <i>{config['name']}</i>'
@@ -125,7 +124,7 @@ class MainWindow(QMainWindow):
 
 			# Obtengo el HTML de esa URL
 			try:
-				html = self.download_html(price_lists_url)
+				html = self.download_html(supplier_url)
 			except Exception:
 				self.try_local_lists(
 					config['brands'], 
@@ -149,10 +148,12 @@ class MainWindow(QMainWindow):
 	# ------------------------------------------------------------------------------------------
 
 	def process_brand(self, html, brand):
-		"""Busca la URL de la lista en el html, la descarga y la procesa."""
+		"""Busca la URL de la lista en el HTML, la descarga y la procesa."""
+
+		soup = bs4.BeautifulSoup(html, 'html.parser')
 
 		# Busco link de la lista
-		list_url = self.get_list_url_from_html(html, brand)
+		list_url = self.get_list_url_from_soup(soup, brand)
 		if not list_url:
 			local_status = self.try_local_list(brand)
 			msg = self.build_message(brand, local_status, 'No se encontró link')
@@ -163,17 +164,10 @@ class MainWindow(QMainWindow):
 		try:
 			excel_file_path = self.download_excel_file(list_url, brand)
 
-			# Tengo archivo nuevo: si es Camba, actualizo fecha de validez
+			# Tengo archivo nuevo: actualizo fecha de validez si es CAMBA
 			if brand == 'camba':
-				# Si no encontré en el HTML, busco en nombre de archivo
-				if not self.camba_last_date:
-					self.camba_last_date = self.extract_date_from_filename(excel_file_path)
-
-				# Como último recurso, tomo fecha actual
-				if not self.camba_last_date:
-					self.camba_last_date = datetime.now().strftime('%d/%m/%Y')
-
-				SETTINGS.setValue('camba_last_date', self.camba_last_date)
+				camba_last_date = self.resolve_camba_date(soup, excel_file_path)
+				SETTINGS.setValue('camba_last_date', camba_last_date)
 
 		except Exception:
 			local_status = self.try_local_list(brand)
@@ -228,7 +222,7 @@ class MainWindow(QMainWindow):
 	# ------------------------------------------------------------------------------------------
 
 	def get_url_from_settings(self, supplier):
-		return SETTINGS.value(f'price_lists_urls/{supplier}', '', type=str)
+		return SETTINGS.value(f'supplier_urls/{supplier}', '', type=str)
 
 
 	def download_html(self, url):
@@ -242,7 +236,7 @@ class MainWindow(QMainWindow):
 
 		msg_dict = {
 			'local_used': {
-				'sym': '✅',
+				'sym': '⚠️',
 				'txt': 'Usando lista local'
 			},
 			'local_not_found': {
@@ -255,61 +249,87 @@ class MainWindow(QMainWindow):
 			}
 		}
 
-		msg = (
+		return (
 			f'{msg_dict[local_status]["sym"]} <b>{brand.upper()}</b>: '
 			f'{reason}. '
 			f'{msg_dict[local_status]["txt"]}.'
 		)
 
-		return msg
+
+	def resolve_camba_date(self, soup, excel_file_path):
+		"""
+		Determina qué fecha asociar al excel descargado de CAMBA usando, por prioridad:
+		1) HTML
+		2) nombre del archivo
+		3) fecha actual
+		"""
+
+		# Busco en el HTML
+		date = self.extract_camba_date_from_soup(soup)
+		if date:
+			return date
+
+		# Busco en el nombre de archivo
+		date = self.extract_date_from_filename(excel_file_path)
+		if date:
+			return date
+
+		# Como último recurso: fecha actual
+		return datetime.now().strftime('%d/%m/%Y')
 
 
-	def get_list_url_from_html(self, html, brand):
+	def extract_camba_date_from_soup(self, soup):
+		"""Extrae la fecha actual de las listas de CAMBA desde el HTML."""
+
+		a = soup.find(
+			'a',
+			href=True,
+			string=lambda s: s and 'lista indice' in s.strip().lower()
+		)
+
+		if not a:
+			return None
+
+		match = re.search(r'\d{2}/\d{2}/\d{4}', a.get_text())
+		return match.group() if match else None
+
+
+	def get_list_url_from_soup(self, soup, brand):
 		"""Obtiene del sitio del proveedor el link actual de la lista correspondiente."""
-
-		soup = bs4.BeautifulSoup(html, 'html.parser')
 
 		if brand in ('hh', 'etma'):
 			# Busco el título correcto
-			h1 = soup.find(
+			h1_elem = soup.find(
 				'h1', 
-				string=lambda s: s and s.strip().upper() in (f'LISTA DE PRECIO {brand.upper()}', f'LISTA DE PRECIOS {brand.upper()}')
+				string=lambda s: s and s.strip().upper() in (
+					f'LISTA DE PRECIO {brand.upper()}',
+					f'LISTA DE PRECIOS {brand.upper()}'
+				)
 			)
-			if not h1:
+			if not h1_elem:
 				return None
 
 			# Subo al bloque contenedor
-			bloque = h1.find_parent('div', class_='widget-span')
-			if not bloque:
+			container = h1_elem.find_parent('div', class_='widget-span')
+			if not container:
 				return None
 
 			# Busco el link dentro del bloque
-			url = bloque.find_next('a', href=True)
-		else: # camba
+			a_elem = container.find_next('a', href=True)
+
+		elif brand == 'camba':
 			# Busco el título correcto
-			h2 = soup.find(
+			h2_elem = soup.find(
 				'h2', 
 				string=lambda s: s and 'Lista de precios formato sabana' in s.strip()
 			)
-			if not h2:
+			if not h2_elem:
 				return None
 
 			# Busco el link
-			url = h2.find_parent('a')
+			a_elem = h2_elem.find_parent('a')
 
-			# Aprovecho el html y extraigo la fecha de actualización
-			a = soup.find(
-				'a',
-				href=True,
-				string=lambda s: s and 'lista indice' in s.strip().lower()
-			)
-
-			if a:
-				match = re.search(r'\d{2}/\d{2}/\d{4}', a.get_text())
-				if match:
-					self.camba_last_date = match.group()
-
-		return url['href'] if url else None
+		return a_elem['href'] if a_elem else None
 
 
 	def download_excel_file(self, url, brand):
@@ -700,7 +720,7 @@ class MainWindow(QMainWindow):
 
 
 	def extract_date_from_filename(self, path):
-		"""Extrae la fecha del nombre del archivo excel de Camba."""
+		"""Extrae la fecha desde el nombre del archivo excel de CAMBA."""
 		match = re.search(r'\d{2}-\d{2}-\d{4}', path)
 		if match:
 			return match.group().replace('-', '/')
@@ -749,7 +769,7 @@ class MainWindow(QMainWindow):
 		dialog.exec()
 
 		# Verifico si recargar
-		if dialog.new_price_lists_url:
+		if dialog.new_supplier_urls:
 			self.initialize()
 
 
@@ -771,7 +791,7 @@ class ConfigurationDialog(QDialog):
 		self.load_config()
 
 		# Defino variables
-		self.new_price_lists_url = False # Flag para recargar al cerrar dialog
+		self.new_supplier_urls = False # Flag para recargar al cerrar dialog
 
 		# Conecto señales
 		self.pushButton_ok.clicked.connect(self.save_config)
@@ -779,14 +799,14 @@ class ConfigurationDialog(QDialog):
 
 
 	def load_config(self):
-		self.lineEdit_url_tdc.setText(SETTINGS.value('price_lists_urls/tdc', '', type=str))
-		self.lineEdit_url_camba.setText(SETTINGS.value('price_lists_urls/camba', '', type=str))
+		self.lineEdit_url_tdc.setText(SETTINGS.value('supplier_urls/tdc', '', type=str))
+		self.lineEdit_url_camba.setText(SETTINGS.value('supplier_urls/camba', '', type=str))
 
 
 	def save_config(self):
-		SETTINGS.setValue('price_lists_urls/tdc', self.lineEdit_url_tdc.text())
-		SETTINGS.setValue('price_lists_urls/camba', self.lineEdit_url_camba.text())
-		self.new_price_lists_url = True # Para recargar al cerrar configuración
+		SETTINGS.setValue('supplier_urls/tdc', self.lineEdit_url_tdc.text())
+		SETTINGS.setValue('supplier_urls/camba', self.lineEdit_url_camba.text())
+		self.new_supplier_urls = True # Para recargar al cerrar configuración
 		self.close()
 
 
