@@ -15,7 +15,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon, QFont
 from PyQt6 import uic
 import sys
-from utils import MOST_USED_PRODUCTS_HH, MOST_USED_PRODUCTS_ETMA, MOST_USED_PRODUCTS_CAMBA, RUBROS_CAMBA, URLS_ROSARIO_AGRO, SETTINGS
+from utils import SETTINGS, HOJAS_CAMBA, RUBROS_CAMBA, URLS_ROSARIO_AGRO, MOST_USED_PRODUCTS_HH, MOST_USED_PRODUCTS_ETMA, MOST_USED_PRODUCTS_CAMBA 
 
 
 
@@ -26,15 +26,39 @@ class MainWindow(QMainWindow):
 		# Cargo la UI
 		uic.loadUi('ui/app.ui', self)
 
-		# Inicializo variables
-		# self.is_local_list_hh = False
-		# self.is_local_list_etma = False
-		# self.is_local_list_camba = False
-
 		# Señales de pushbuttons
 		self.pushButton_theme.clicked.connect(self.change_theme)
 		self.pushButton_config.clicked.connect(self.open_config)
 		self.pushButton_about.clicked.connect(self.open_about)
+		self.pushButton_alemite.clicked.connect(self.open_pdf)
+		self.pushButton_seeger.clicked.connect(self.open_pdf)
+		self.pushButton_arandela_grower.clicked.connect(self.open_pdf)
+		self.pushButton_arandela_plana.clicked.connect(self.open_pdf)
+		self.pushButton_bulon_unc.clicked.connect(self.open_pdf)
+		self.pushButton_bulon_unf.clicked.connect(self.open_pdf)
+		self.pushButton_chaveta_partida.clicked.connect(self.open_pdf)
+		self.pushButton_espina_elastica.clicked.connect(self.open_pdf)
+		self.pushButton_prisionero_cilindrica.clicked.connect(self.open_pdf)
+		self.pushButton_prisionero_sin.clicked.connect(self.open_pdf)
+		self.pushButton_prisionero_cuadrada.clicked.connect(self.open_pdf)
+		self.pushButton_tuerca_exagonal.clicked.connect(self.open_pdf)
+		self.pushButton_tuerca_castillo.clicked.connect(self.open_pdf)
+		self.pushButton_tuerca_torneada.clicked.connect(self.open_pdf)
+		self.pushButton_varilla_camba.clicked.connect(self.open_pdf)
+		self.pushButton_tornillo_metrico.clicked.connect(self.open_pdf)
+		self.pushButton_tornillo_inox.clicked.connect(self.open_pdf)
+		self.pushButton_gummi.clicked.connect(self.open_pdf)
+		self.pushButton_tupac.clicked.connect(self.open_pdf)
+		self.pushButton_cadena.clicked.connect(self.open_pdf)
+		self.pushButton_cruceta.clicked.connect(self.open_pdf)
+		self.pushButton_cuchilla.clicked.connect(self.open_pdf)
+		self.pushButton_forro.clicked.connect(self.open_pdf)
+		self.pushButton_polea.clicked.connect(self.open_pdf)
+		self.pushButton_cardan.clicked.connect(self.open_pdf)
+		self.pushButton_rotula.clicked.connect(self.open_pdf)
+		self.pushButton_varilla_rosario.clicked.connect(self.open_pdf)
+		self.pushButton_soporte.clicked.connect(self.open_pdf)
+		self.pushButton_termo.clicked.connect(self.open_pdf)
 
 		# Señales de comboboxes
 		self.comboBox_most_used_hh.activated.connect(self.load_category)
@@ -52,7 +76,7 @@ class MainWindow(QMainWindow):
 		# Aplico tema claro por defecto
 		self.apply_theme('light')
 
-		# self.showMaximized() # Abro la ventana maximizada
+		self.showMaximized() # Abro la ventana maximizada
 
 		self.initialize()
 

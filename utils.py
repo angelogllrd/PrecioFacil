@@ -347,15 +347,15 @@ RUBROS_CAMBA = {
 URLS_ROSARIO_AGRO = {
     'gummi': 'https://www.rosarioagroindustrial.com/download.php?f=GUMMI.pdf',
     'tupac': 'https://www.rosarioagroindustrial.com/download.php?f=Tupac.pdf',
-    'link': 'https://www.rosarioagroindustrial.com/download.php?f=Cadenas_LinkBelt.pdf',
-    'etma': 'https://www.rosarioagroindustrial.com/download.php?f=Crucetas_ETMA.pdf',
-    'cuchi': 'https://www.rosarioagroindustrial.com/download.php?f=Cuchillas_Agro.pdf',
-    'forrro': 'https://www.rosarioagroindustrial.com/download.php?f=FORRO_DE_EMBRAGUE.pdf',
+    'cadena': 'https://www.rosarioagroindustrial.com/download.php?f=Cadenas_LinkBelt.pdf',
+    'cruceta': 'https://www.rosarioagroindustrial.com/download.php?f=Crucetas_ETMA.pdf',
+    'cuchilla': 'https://www.rosarioagroindustrial.com/download.php?f=Cuchillas_Agro.pdf',
+    'forro': 'https://www.rosarioagroindustrial.com/download.php?f=FORRO_DE_EMBRAGUE.pdf',
     'polea': 'https://www.rosarioagroindustrial.com/download.php?f=PoleasHF.pdf',
     'cardan': 'https://www.rosarioagroindustrial.com/download.php?f=Repuestos_cardanicos.pdf',
     'rotula': 'https://www.rosarioagroindustrial.com/download.php?f=Rotulas.pdf',
     'varilla': 'https://www.rosarioagroindustrial.com/download.php?f=ROSCAS_ACME.pdf',
-    'fkd': 'https://www.rosarioagroindustrial.com/download.php?f=Soportes_FKD.pdf',
+    'soporte': 'https://www.rosarioagroindustrial.com/download.php?f=Soportes_FKD.pdf',
     'termo': 'https://www.rosarioagroindustrial.com/download.php?f=Termoplasticos.pdf'
 }
 

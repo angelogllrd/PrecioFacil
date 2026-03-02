@@ -31,6 +31,110 @@
     <property name="bottomMargin">
      <number>10</number>
     </property>
+    <item row="1" column="0">
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <item>
+       <spacer name="horizontalSpacer_2">
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_theme">
+        <property name="maximumSize">
+         <size>
+          <width>24</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="toolTip">
+         <string>Cambiar tema</string>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="icon">
+         <iconset>
+          <normaloff>resources/icons/icon_mode_dark.svg</normaloff>resources/icons/icon_mode_dark.svg</iconset>
+        </property>
+        <property name="iconSize">
+         <size>
+          <width>20</width>
+          <height>20</height>
+         </size>
+        </property>
+        <property name="flat">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_config">
+        <property name="maximumSize">
+         <size>
+          <width>24</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="toolTip">
+         <string>Configuración</string>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="icon">
+         <iconset>
+          <normaloff>resources/icons/icon_config_dark.svg</normaloff>resources/icons/icon_config_dark.svg</iconset>
+        </property>
+        <property name="iconSize">
+         <size>
+          <width>20</width>
+          <height>20</height>
+         </size>
+        </property>
+        <property name="flat">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_about">
+        <property name="maximumSize">
+         <size>
+          <width>24</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="toolTip">
+         <string>Acerca de</string>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="icon">
+         <iconset>
+          <normaloff>../resources/icons/icon_about_dark.svg</normaloff>../resources/icons/icon_about_dark.svg</iconset>
+        </property>
+        <property name="iconSize">
+         <size>
+          <width>20</width>
+          <height>20</height>
+         </size>
+        </property>
+        <property name="flat">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
     <item row="0" column="0">
      <widget class="QTabWidget" name="tabWidget">
       <property name="font">
@@ -39,7 +143,7 @@
        </font>
       </property>
       <property name="currentIndex">
-       <number>2</number>
+       <number>3</number>
       </property>
       <property name="iconSize">
        <size>
@@ -50,7 +154,7 @@
       <widget class="QWidget" name="tab_hh">
        <attribute name="icon">
         <iconset>
-         <normaloff>../resources/img/hh.png</normaloff>../resources/img/hh.png</iconset>
+         <normaloff>../resources/img/brands/hh.png</normaloff>../resources/img/brands/hh.png</iconset>
        </attribute>
        <attribute name="title">
         <string/>
@@ -310,7 +414,7 @@
       <widget class="QWidget" name="tab_etma">
        <attribute name="icon">
         <iconset>
-         <normaloff>../resources/img/etma.png</normaloff>../resources/img/etma.png</iconset>
+         <normaloff>../resources/img/brands/etma.png</normaloff>../resources/img/brands/etma.png</iconset>
        </attribute>
        <attribute name="title">
         <string/>
@@ -570,16 +674,253 @@
       <widget class="QWidget" name="tab_camba">
        <attribute name="icon">
         <iconset>
-         <normaloff>../resources/img/camba.png</normaloff>../resources/img/camba.png</iconset>
+         <normaloff>../resources/img/brands/camba.png</normaloff>../resources/img/brands/camba.png</iconset>
        </attribute>
        <attribute name="title">
         <string/>
        </attribute>
        <layout class="QGridLayout" name="gridLayout_8">
         <item row="0" column="0">
-         <layout class="QVBoxLayout" name="verticalLayout_3">
+         <layout class="QHBoxLayout" name="horizontalLayout_7">
           <item>
-           <widget class="QGroupBox" name="groupBox_5">
+           <layout class="QVBoxLayout" name="verticalLayout_3">
+            <item>
+             <widget class="QGroupBox" name="groupBox_5">
+              <property name="font">
+               <font>
+                <pointsize>11</pointsize>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="title">
+               <string>Búsqueda 🔍</string>
+              </property>
+              <layout class="QGridLayout" name="gridLayout_9">
+               <item row="2" column="0">
+                <widget class="QTableWidget" name="tableWidget_search_camba">
+                 <property name="font">
+                  <font>
+                   <pointsize>11</pointsize>
+                   <bold>false</bold>
+                  </font>
+                 </property>
+                 <property name="editTriggers">
+                  <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+                 </property>
+                 <property name="tabKeyNavigation">
+                  <bool>false</bool>
+                 </property>
+                 <property name="alternatingRowColors">
+                  <bool>true</bool>
+                 </property>
+                 <property name="selectionMode">
+                  <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
+                 </property>
+                 <property name="selectionBehavior">
+                  <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+                 </property>
+                 <attribute name="verticalHeaderVisible">
+                  <bool>false</bool>
+                 </attribute>
+                 <column>
+                  <property name="text">
+                   <string>CÓDIGO</string>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>11</pointsize>
+                    <bold>true</bold>
+                   </font>
+                  </property>
+                 </column>
+                 <column>
+                  <property name="text">
+                   <string>SUBCATEGORÍA</string>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>11</pointsize>
+                    <bold>true</bold>
+                   </font>
+                  </property>
+                 </column>
+                 <column>
+                  <property name="text">
+                   <string>DESCRIPCIÓN</string>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>11</pointsize>
+                    <bold>true</bold>
+                   </font>
+                  </property>
+                 </column>
+                 <column>
+                  <property name="text">
+                   <string>PRECIO</string>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>11</pointsize>
+                    <bold>true</bold>
+                   </font>
+                  </property>
+                 </column>
+                </widget>
+               </item>
+               <item row="0" column="0">
+                <widget class="QLineEdit" name="lineEdit_search_camba">
+                 <property name="font">
+                  <font>
+                   <pointsize>11</pointsize>
+                   <bold>false</bold>
+                  </font>
+                 </property>
+                 <property name="placeholderText">
+                  <string>Ingrese código o descripción del producto</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="label_search_camba">
+                 <property name="font">
+                  <font>
+                   <pointsize>11</pointsize>
+                   <bold>false</bold>
+                  </font>
+                 </property>
+                 <property name="text">
+                  <string/>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="groupBox_6">
+              <property name="font">
+               <font>
+                <pointsize>11</pointsize>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="title">
+               <string>Más usados ⭐</string>
+              </property>
+              <layout class="QGridLayout" name="gridLayout_10">
+               <item row="2" column="0">
+                <widget class="QTableWidget" name="tableWidget_defaults_camba">
+                 <property name="font">
+                  <font>
+                   <pointsize>11</pointsize>
+                   <bold>false</bold>
+                  </font>
+                 </property>
+                 <property name="editTriggers">
+                  <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+                 </property>
+                 <property name="tabKeyNavigation">
+                  <bool>false</bool>
+                 </property>
+                 <property name="alternatingRowColors">
+                  <bool>true</bool>
+                 </property>
+                 <property name="selectionMode">
+                  <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
+                 </property>
+                 <property name="selectionBehavior">
+                  <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+                 </property>
+                 <attribute name="verticalHeaderVisible">
+                  <bool>false</bool>
+                 </attribute>
+                 <column>
+                  <property name="text">
+                   <string>CÓDIGO</string>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>11</pointsize>
+                    <bold>true</bold>
+                   </font>
+                  </property>
+                 </column>
+                 <column>
+                  <property name="text">
+                   <string>SUBCATEGORÍA</string>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>11</pointsize>
+                    <bold>true</bold>
+                   </font>
+                  </property>
+                 </column>
+                 <column>
+                  <property name="text">
+                   <string>DESCRIPCIÓN</string>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>11</pointsize>
+                    <bold>true</bold>
+                   </font>
+                  </property>
+                 </column>
+                 <column>
+                  <property name="text">
+                   <string>PRECIO</string>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>11</pointsize>
+                    <bold>true</bold>
+                   </font>
+                  </property>
+                 </column>
+                </widget>
+               </item>
+               <item row="0" column="0">
+                <layout class="QHBoxLayout" name="horizontalLayout_5">
+                 <item>
+                  <widget class="QComboBox" name="comboBox_most_used_camba">
+                   <property name="minimumSize">
+                    <size>
+                     <width>456</width>
+                     <height>0</height>
+                    </size>
+                   </property>
+                   <property name="font">
+                    <font>
+                     <pointsize>11</pointsize>
+                     <bold>false</bold>
+                    </font>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <spacer name="horizontalSpacer_4">
+                   <property name="orientation">
+                    <enum>Qt::Orientation::Horizontal</enum>
+                   </property>
+                   <property name="sizeHint" stdset="0">
+                    <size>
+                     <width>40</width>
+                     <height>20</height>
+                    </size>
+                   </property>
+                  </spacer>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="groupBox_7">
             <property name="font">
              <font>
               <pointsize>11</pointsize>
@@ -587,96 +928,11 @@
              </font>
             </property>
             <property name="title">
-             <string>Búsqueda 🔍</string>
+             <string>Hojas principales</string>
             </property>
-            <layout class="QGridLayout" name="gridLayout_9">
-             <item row="2" column="0">
-              <widget class="QTableWidget" name="tableWidget_search_camba">
-               <property name="font">
-                <font>
-                 <pointsize>11</pointsize>
-                 <bold>false</bold>
-                </font>
-               </property>
-               <property name="editTriggers">
-                <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
-               </property>
-               <property name="tabKeyNavigation">
-                <bool>false</bool>
-               </property>
-               <property name="alternatingRowColors">
-                <bool>true</bool>
-               </property>
-               <property name="selectionMode">
-                <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
-               </property>
-               <property name="selectionBehavior">
-                <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
-               </property>
-               <attribute name="verticalHeaderVisible">
-                <bool>false</bool>
-               </attribute>
-               <column>
-                <property name="text">
-                 <string>CÓDIGO</string>
-                </property>
-                <property name="font">
-                 <font>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-               </column>
-               <column>
-                <property name="text">
-                 <string>SUBCATEGORÍA</string>
-                </property>
-                <property name="font">
-                 <font>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-               </column>
-               <column>
-                <property name="text">
-                 <string>DESCRIPCIÓN</string>
-                </property>
-                <property name="font">
-                 <font>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-               </column>
-               <column>
-                <property name="text">
-                 <string>PRECIO</string>
-                </property>
-                <property name="font">
-                 <font>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-               </column>
-              </widget>
-             </item>
-             <item row="0" column="0">
-              <widget class="QLineEdit" name="lineEdit_search_camba">
-               <property name="font">
-                <font>
-                 <pointsize>11</pointsize>
-                 <bold>false</bold>
-                </font>
-               </property>
-               <property name="placeholderText">
-                <string>Ingrese código o descripción del producto</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="label_search_camba">
+            <layout class="QGridLayout" name="gridLayout_11">
+             <item row="3" column="0">
+              <widget class="QPushButton" name="pushButton_bulon_unc">
                <property name="font">
                 <font>
                  <pointsize>11</pointsize>
@@ -684,263 +940,652 @@
                 </font>
                </property>
                <property name="text">
-                <string/>
+                <string>   2A</string>
+               </property>
+               <property name="icon">
+                <iconset>
+                 <normaloff>../resources/img/camba/bulon_unc.png</normaloff>../resources/img/camba/bulon_unc.png</iconset>
+               </property>
+               <property name="iconSize">
+                <size>
+                 <width>55</width>
+                 <height>55</height>
+                </size>
                </property>
               </widget>
              </item>
-            </layout>
-           </widget>
-          </item>
-          <item>
-           <widget class="QGroupBox" name="groupBox_6">
-            <property name="font">
-             <font>
-              <pointsize>11</pointsize>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="title">
-             <string>Más usados ⭐</string>
-            </property>
-            <layout class="QGridLayout" name="gridLayout_10">
-             <item row="2" column="0">
-              <widget class="QTableWidget" name="tableWidget_defaults_camba">
+             <item row="8" column="1">
+              <widget class="QPushButton" name="pushButton_tuerca_torneada">
                <property name="font">
                 <font>
                  <pointsize>11</pointsize>
                  <bold>false</bold>
                 </font>
                </property>
-               <property name="editTriggers">
-                <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+               <property name="text">
+                <string>   23A</string>
                </property>
-               <property name="tabKeyNavigation">
-                <bool>false</bool>
+               <property name="icon">
+                <iconset>
+                 <normaloff>../resources/img/camba/tuerca_torneada.png</normaloff>../resources/img/camba/tuerca_torneada.png</iconset>
                </property>
-               <property name="alternatingRowColors">
-                <bool>true</bool>
+               <property name="iconSize">
+                <size>
+                 <width>55</width>
+                 <height>55</height>
+                </size>
                </property>
-               <property name="selectionMode">
-                <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QPushButton" name="pushButton_arandela_grower">
+               <property name="font">
+                <font>
+                 <pointsize>11</pointsize>
+                 <bold>false</bold>
+                </font>
                </property>
-               <property name="selectionBehavior">
-                <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+               <property name="text">
+                <string>   10D</string>
                </property>
-               <attribute name="verticalHeaderVisible">
-                <bool>false</bool>
-               </attribute>
-               <column>
-                <property name="text">
-                 <string>CÓDIGO</string>
-                </property>
-                <property name="font">
-                 <font>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-               </column>
-               <column>
-                <property name="text">
-                 <string>SUBCATEGORÍA</string>
-                </property>
-                <property name="font">
-                 <font>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-               </column>
-               <column>
-                <property name="text">
-                 <string>DESCRIPCIÓN</string>
-                </property>
-                <property name="font">
-                 <font>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-               </column>
-               <column>
-                <property name="text">
-                 <string>PRECIO</string>
-                </property>
-                <property name="font">
-                 <font>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-               </column>
+               <property name="icon">
+                <iconset>
+                 <normaloff>../resources/img/camba/arandela_grower.png</normaloff>../resources/img/camba/arandela_grower.png</iconset>
+               </property>
+               <property name="iconSize">
+                <size>
+                 <width>55</width>
+                 <height>55</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QPushButton" name="pushButton_seeger">
+               <property name="font">
+                <font>
+                 <pointsize>11</pointsize>
+                 <bold>false</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>   35B</string>
+               </property>
+               <property name="icon">
+                <iconset>
+                 <normaloff>../resources/img/camba/seeger.png</normaloff>../resources/img/camba/seeger.png</iconset>
+               </property>
+               <property name="iconSize">
+                <size>
+                 <width>55</width>
+                 <height>55</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="0">
+              <widget class="QPushButton" name="pushButton_prisionero_cuadrada">
+               <property name="font">
+                <font>
+                 <pointsize>11</pointsize>
+                 <bold>false</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>   13A</string>
+               </property>
+               <property name="icon">
+                <iconset>
+                 <normaloff>../resources/img/camba/prisionero_cuadrada.png</normaloff>../resources/img/camba/prisionero_cuadrada.png</iconset>
+               </property>
+               <property name="iconSize">
+                <size>
+                 <width>55</width>
+                 <height>55</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+             <item row="11" column="0">
+              <spacer name="verticalSpacer_2">
+               <property name="orientation">
+                <enum>Qt::Orientation::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>40</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item row="9" column="0">
+              <widget class="QPushButton" name="pushButton_varilla_camba">
+               <property name="font">
+                <font>
+                 <pointsize>11</pointsize>
+                 <bold>false</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>   11B
+   17A</string>
+               </property>
+               <property name="icon">
+                <iconset>
+                 <normaloff>../resources/img/camba/varilla.png</normaloff>../resources/img/camba/varilla.png</iconset>
+               </property>
+               <property name="iconSize">
+                <size>
+                 <width>55</width>
+                 <height>55</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="1">
+              <widget class="QPushButton" name="pushButton_bulon_unf">
+               <property name="font">
+                <font>
+                 <pointsize>11</pointsize>
+                 <bold>false</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>   7A</string>
+               </property>
+               <property name="icon">
+                <iconset>
+                 <normaloff>../resources/img/camba/bulon_unf.png</normaloff>../resources/img/camba/bulon_unf.png</iconset>
+               </property>
+               <property name="iconSize">
+                <size>
+                 <width>55</width>
+                 <height>55</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="0">
+              <widget class="QPushButton" name="pushButton_chaveta_partida">
+               <property name="font">
+                <font>
+                 <pointsize>11</pointsize>
+                 <bold>false</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>   19A</string>
+               </property>
+               <property name="icon">
+                <iconset>
+                 <normaloff>../resources/img/camba/chaveta_partida.png</normaloff>../resources/img/camba/chaveta_partida.png</iconset>
+               </property>
+               <property name="iconSize">
+                <size>
+                 <width>55</width>
+                 <height>55</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="1">
+              <widget class="QPushButton" name="pushButton_espina_elastica">
+               <property name="font">
+                <font>
+                 <pointsize>11</pointsize>
+                 <bold>false</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>   35A</string>
+               </property>
+               <property name="icon">
+                <iconset>
+                 <normaloff>../resources/img/camba/espina_elastica.png</normaloff>../resources/img/camba/espina_elastica.png</iconset>
+               </property>
+               <property name="iconSize">
+                <size>
+                 <width>55</width>
+                 <height>55</height>
+                </size>
+               </property>
               </widget>
              </item>
              <item row="0" column="0">
-              <layout class="QHBoxLayout" name="horizontalLayout_5">
-               <item>
-                <widget class="QComboBox" name="comboBox_most_used_camba">
-                 <property name="minimumSize">
-                  <size>
-                   <width>456</width>
-                   <height>0</height>
-                  </size>
-                 </property>
-                 <property name="font">
-                  <font>
-                   <pointsize>11</pointsize>
-                   <bold>false</bold>
-                  </font>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <spacer name="horizontalSpacer_4">
-                 <property name="orientation">
-                  <enum>Qt::Orientation::Horizontal</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>40</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-              </layout>
+              <spacer name="verticalSpacer">
+               <property name="orientation">
+                <enum>Qt::Orientation::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>40</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item row="10" column="0">
+              <widget class="QPushButton" name="pushButton_tornillo_inox">
+               <property name="font">
+                <font>
+                 <pointsize>11</pointsize>
+                 <bold>false</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>   36H</string>
+               </property>
+               <property name="icon">
+                <iconset>
+                 <normaloff>../resources/img/camba/tornillo_inox.png</normaloff>../resources/img/camba/tornillo_inox.png</iconset>
+               </property>
+               <property name="iconSize">
+                <size>
+                 <width>55</width>
+                 <height>55</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QPushButton" name="pushButton_alemite">
+               <property name="font">
+                <font>
+                 <pointsize>11</pointsize>
+                 <bold>false</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>   22B</string>
+               </property>
+               <property name="icon">
+                <iconset>
+                 <normaloff>../resources/img/camba/alemite.png</normaloff>../resources/img/camba/alemite.png</iconset>
+               </property>
+               <property name="iconSize">
+                <size>
+                 <width>55</width>
+                 <height>55</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="0">
+              <widget class="QPushButton" name="pushButton_prisionero_cilindrica">
+               <property name="font">
+                <font>
+                 <pointsize>11</pointsize>
+                 <bold>false</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>   14B</string>
+               </property>
+               <property name="icon">
+                <iconset>
+                 <normaloff>../resources/img/camba/prisionero_cilindrica.png</normaloff>../resources/img/camba/prisionero_cilindrica.png</iconset>
+               </property>
+               <property name="iconSize">
+                <size>
+                 <width>55</width>
+                 <height>55</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="0">
+              <widget class="QPushButton" name="pushButton_tuerca_castillo">
+               <property name="font">
+                <font>
+                 <pointsize>11</pointsize>
+                 <bold>false</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>   4E
+   23A</string>
+               </property>
+               <property name="icon">
+                <iconset>
+                 <normaloff>../resources/img/camba/tuerca_castillo.png</normaloff>../resources/img/camba/tuerca_castillo.png</iconset>
+               </property>
+               <property name="iconSize">
+                <size>
+                 <width>55</width>
+                 <height>55</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="1">
+              <widget class="QPushButton" name="pushButton_prisionero_sin">
+               <property name="font">
+                <font>
+                 <pointsize>11</pointsize>
+                 <bold>false</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>   14C</string>
+               </property>
+               <property name="icon">
+                <iconset>
+                 <normaloff>../resources/img/camba/prisionero_sin.png</normaloff>../resources/img/camba/prisionero_sin.png</iconset>
+               </property>
+               <property name="iconSize">
+                <size>
+                 <width>55</width>
+                 <height>55</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QPushButton" name="pushButton_arandela_plana">
+               <property name="font">
+                <font>
+                 <pointsize>11</pointsize>
+                 <bold>false</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>   16A</string>
+               </property>
+               <property name="icon">
+                <iconset>
+                 <normaloff>../resources/img/camba/arandela_plana.png</normaloff>../resources/img/camba/arandela_plana.png</iconset>
+               </property>
+               <property name="iconSize">
+                <size>
+                 <width>55</width>
+                 <height>55</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="1">
+              <widget class="QPushButton" name="pushButton_tuerca_exagonal">
+               <property name="font">
+                <font>
+                 <pointsize>11</pointsize>
+                 <bold>false</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>   4A</string>
+               </property>
+               <property name="icon">
+                <iconset>
+                 <normaloff>../resources/img/camba/tuerca_exagonal.png</normaloff>../resources/img/camba/tuerca_exagonal.png</iconset>
+               </property>
+               <property name="iconSize">
+                <size>
+                 <width>55</width>
+                 <height>55</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+             <item row="9" column="1">
+              <widget class="QPushButton" name="pushButton_tornillo_metrico">
+               <property name="font">
+                <font>
+                 <pointsize>11</pointsize>
+                 <bold>false</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>   13B</string>
+               </property>
+               <property name="icon">
+                <iconset>
+                 <normaloff>../resources/img/camba/tornillo_metrico.png</normaloff>../resources/img/camba/tornillo_metrico.png</iconset>
+               </property>
+               <property name="iconSize">
+                <size>
+                 <width>55</width>
+                 <height>55</height>
+                </size>
+               </property>
+              </widget>
              </item>
             </layout>
            </widget>
           </item>
-          <item>
-           <widget class="QLabel" name="label_validity_date_camba">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-             </font>
-            </property>
-            <property name="text">
-             <string/>
-            </property>
-           </widget>
-          </item>
          </layout>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="label_validity_date_camba">
+          <property name="font">
+           <font>
+            <pointsize>9</pointsize>
+           </font>
+          </property>
+          <property name="text">
+           <string/>
+          </property>
+         </widget>
         </item>
        </layout>
       </widget>
       <widget class="QWidget" name="tab">
        <attribute name="icon">
         <iconset>
-         <normaloff>../resources/img/rosario.png</normaloff>../resources/img/rosario.png</iconset>
+         <normaloff>../resources/img/brands/rosario.png</normaloff>../resources/img/brands/rosario.png</iconset>
        </attribute>
        <attribute name="title">
         <string/>
        </attribute>
+       <layout class="QGridLayout" name="gridLayout_12">
+        <item row="2" column="1">
+         <widget class="QPushButton" name="pushButton_cardan">
+          <property name="text">
+           <string>   Repuestos cardánicos</string>
+          </property>
+          <property name="icon">
+           <iconset>
+            <normaloff>../resources/img/rosario/cardan.png</normaloff>../resources/img/rosario/cardan.png</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>103</width>
+            <height>80</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="2">
+         <widget class="QPushButton" name="pushButton_rotula">
+          <property name="text">
+           <string>   Rótulas</string>
+          </property>
+          <property name="icon">
+           <iconset>
+            <normaloff>../resources/img/rosario/rotulas.png</normaloff>../resources/img/rosario/rotulas.png</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>82</width>
+            <height>80</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QPushButton" name="pushButton_tupac">
+          <property name="text">
+           <string>   Acoples Tupac y Goma/Tela</string>
+          </property>
+          <property name="icon">
+           <iconset>
+            <normaloff>../resources/img/rosario/acomples_tupac.png</normaloff>../resources/img/rosario/acomples_tupac.png</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>80</width>
+            <height>80</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QPushButton" name="pushButton_cuchilla">
+          <property name="text">
+           <string>   Cuchillas y Repuestos para
+   Desmalezadoras</string>
+          </property>
+          <property name="icon">
+           <iconset>
+            <normaloff>../resources/img/rosario/cuchillas.png</normaloff>../resources/img/rosario/cuchillas.png</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>136</width>
+            <height>80</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="2">
+         <widget class="QPushButton" name="pushButton_forro">
+          <property name="text">
+           <string>   Forros de Embrague</string>
+          </property>
+          <property name="icon">
+           <iconset>
+            <normaloff>../resources/img/rosario/forros.png</normaloff>../resources/img/rosario/forros.png</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>93</width>
+            <height>80</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="2">
+         <widget class="QPushButton" name="pushButton_cadena">
+          <property name="text">
+           <string>   Cadenas Link Belt</string>
+          </property>
+          <property name="icon">
+           <iconset>
+            <normaloff>../resources/img/rosario/cadenas.png</normaloff>../resources/img/rosario/cadenas.png</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>126</width>
+            <height>80</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QPushButton" name="pushButton_gummi">
+          <property name="text">
+           <string>   Acoples Gummi</string>
+          </property>
+          <property name="icon">
+           <iconset>
+            <normaloff>../resources/img/rosario/acoples_gummi.png</normaloff>../resources/img/rosario/acoples_gummi.png</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>80</width>
+            <height>80</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QPushButton" name="pushButton_polea">
+          <property name="text">
+           <string>   Poleas de HF</string>
+          </property>
+          <property name="icon">
+           <iconset>
+            <normaloff>../resources/img/rosario/poleas.png</normaloff>../resources/img/rosario/poleas.png</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>108</width>
+            <height>80</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QPushButton" name="pushButton_cruceta">
+          <property name="text">
+           <string>   Crucetas ETMA</string>
+          </property>
+          <property name="icon">
+           <iconset>
+            <normaloff>../resources/img/rosario/crucetas.png</normaloff>../resources/img/rosario/crucetas.png</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>112</width>
+            <height>80</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QPushButton" name="pushButton_varilla_rosario">
+          <property name="text">
+           <string>   Roscas y Varillas Roscadas</string>
+          </property>
+          <property name="icon">
+           <iconset>
+            <normaloff>../resources/img/rosario/varillas.png</normaloff>../resources/img/rosario/varillas.png</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>124</width>
+            <height>80</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QPushButton" name="pushButton_soporte">
+          <property name="text">
+           <string>   Soportes Autocentrantes FKD</string>
+          </property>
+          <property name="icon">
+           <iconset>
+            <normaloff>../resources/img/rosario/soportes.png</normaloff>../resources/img/rosario/soportes.png</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>95</width>
+            <height>80</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="2">
+         <widget class="QPushButton" name="pushButton_termo">
+          <property name="text">
+           <string>   Termoplásticos</string>
+          </property>
+          <property name="icon">
+           <iconset>
+            <normaloff>../resources/img/rosario/termoplasticos.png</normaloff>../resources/img/rosario/termoplasticos.png</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>80</width>
+            <height>80</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </widget>
      </widget>
-    </item>
-    <item row="1" column="0">
-     <layout class="QHBoxLayout" name="horizontalLayout">
-      <item>
-       <spacer name="horizontalSpacer_2">
-        <property name="orientation">
-         <enum>Qt::Orientation::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>40</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item>
-       <widget class="QPushButton" name="pushButton_theme">
-        <property name="maximumSize">
-         <size>
-          <width>24</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="toolTip">
-         <string>Cambiar tema</string>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="icon">
-         <iconset>
-          <normaloff>resources/icons/icon_mode_dark.svg</normaloff>resources/icons/icon_mode_dark.svg</iconset>
-        </property>
-        <property name="iconSize">
-         <size>
-          <width>20</width>
-          <height>20</height>
-         </size>
-        </property>
-        <property name="flat">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="pushButton_config">
-        <property name="maximumSize">
-         <size>
-          <width>24</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="toolTip">
-         <string>Configuración</string>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="icon">
-         <iconset>
-          <normaloff>resources/icons/icon_config_dark.svg</normaloff>resources/icons/icon_config_dark.svg</iconset>
-        </property>
-        <property name="iconSize">
-         <size>
-          <width>20</width>
-          <height>20</height>
-         </size>
-        </property>
-        <property name="flat">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="pushButton_about">
-        <property name="maximumSize">
-         <size>
-          <width>24</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="toolTip">
-         <string>Acerca de</string>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="icon">
-         <iconset>
-          <normaloff>../resources/icons/icon_about_dark.svg</normaloff>../resources/icons/icon_about_dark.svg</iconset>
-        </property>
-        <property name="iconSize">
-         <size>
-          <width>20</width>
-          <height>20</height>
-         </size>
-        </property>
-        <property name="flat">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-     </layout>
     </item>
    </layout>
   </widget>
