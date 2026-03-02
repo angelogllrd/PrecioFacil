@@ -4,7 +4,26 @@ from PyQt6.QtCore import QSettings
 SETTINGS = QSettings('COMET', 'PrecioFacil')
 
 
-RUBROS_CAMBA = {
+CAMBA_SHEETS = ('02', '04', '07', '10', '13', '14', '16', '17', '19', '22', '23', '35', '36')
+
+
+ROSARIO_URLS = (
+    'https://www.rosarioagroindustrial.com/download.php?f=GUMMI.pdf',
+    'https://www.rosarioagroindustrial.com/download.php?f=Tupac.pdf',
+    'https://www.rosarioagroindustrial.com/download.php?f=Cadenas_LinkBelt.pdf',
+    'https://www.rosarioagroindustrial.com/download.php?f=Crucetas_ETMA.pdf',
+    'https://www.rosarioagroindustrial.com/download.php?f=Cuchillas_Agro.pdf',
+    'https://www.rosarioagroindustrial.com/download.php?f=FORRO_DE_EMBRAGUE.pdf',
+    'https://www.rosarioagroindustrial.com/download.php?f=PoleasHF.pdf',
+    'https://www.rosarioagroindustrial.com/download.php?f=Repuestos_cardanicos.pdf',
+    'https://www.rosarioagroindustrial.com/download.php?f=Rotulas.pdf',
+    'https://www.rosarioagroindustrial.com/download.php?f=ROSCAS_ACME.pdf',
+    'https://www.rosarioagroindustrial.com/download.php?f=Soportes_FKD.pdf',
+    'https://www.rosarioagroindustrial.com/download.php?f=Termoplasticos.pdf'
+)
+
+
+CAMBA_CATEGORIES = {
     # HOJA 1
     '2Z':  'BULON CABEZA REDONDA CON CUADRADO GRADO 2 UNC ZINCADO / BULON CABEZA REDONDA OTROS',
     '2A':  'BULON CABEZA REDONDA CON CUADRADO GRADO 2 UNC PULIDO',
@@ -341,22 +360,6 @@ RUBROS_CAMBA = {
     'T2': 'TORNILLO DRYDRO/DRYWALL',
     '24F': 'MACHOS VARIOS',
     'LED': 'LAMPARA PORTATIL LED 12V 5MT / ADAPTADOR ENCENDEDOR',
-}
-
-
-URLS_ROSARIO_AGRO = {
-    'gummi': 'https://www.rosarioagroindustrial.com/download.php?f=GUMMI.pdf',
-    'tupac': 'https://www.rosarioagroindustrial.com/download.php?f=Tupac.pdf',
-    'cadena': 'https://www.rosarioagroindustrial.com/download.php?f=Cadenas_LinkBelt.pdf',
-    'cruceta': 'https://www.rosarioagroindustrial.com/download.php?f=Crucetas_ETMA.pdf',
-    'cuchilla': 'https://www.rosarioagroindustrial.com/download.php?f=Cuchillas_Agro.pdf',
-    'forro': 'https://www.rosarioagroindustrial.com/download.php?f=FORRO_DE_EMBRAGUE.pdf',
-    'polea': 'https://www.rosarioagroindustrial.com/download.php?f=PoleasHF.pdf',
-    'cardan': 'https://www.rosarioagroindustrial.com/download.php?f=Repuestos_cardanicos.pdf',
-    'rotula': 'https://www.rosarioagroindustrial.com/download.php?f=Rotulas.pdf',
-    'varilla': 'https://www.rosarioagroindustrial.com/download.php?f=ROSCAS_ACME.pdf',
-    'soporte': 'https://www.rosarioagroindustrial.com/download.php?f=Soportes_FKD.pdf',
-    'termo': 'https://www.rosarioagroindustrial.com/download.php?f=Termoplasticos.pdf'
 }
 
 

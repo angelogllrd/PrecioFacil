@@ -15,7 +15,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon, QFont
 from PyQt6 import uic
 import sys
-from utils import SETTINGS, HOJAS_CAMBA, RUBROS_CAMBA, URLS_ROSARIO_AGRO, MOST_USED_PRODUCTS_HH, MOST_USED_PRODUCTS_ETMA, MOST_USED_PRODUCTS_CAMBA 
+from utils import SETTINGS, CAMBA_SHEETS, CAMBA_CATEGORIES, ROSARIO_URLS, MOST_USED_PRODUCTS_HH, MOST_USED_PRODUCTS_ETMA, MOST_USED_PRODUCTS_CAMBA 
 
 
 
@@ -478,7 +478,7 @@ class MainWindow(QMainWindow):
 				# Mapeo categoría si es CAMBA
 				subcategory = sheet[header_cols['subcategory_col'] + str(row)].value
 				if brand == 'camba':
-					subcategory = RUBROS_CAMBA.get(subcategory, 'CATEGORIA NO DEFINIDA')
+					subcategory = CAMBA_CATEGORIES.get(subcategory, 'CATEGORIA NO DEFINIDA')
 
 				# Creo el diccionario y lo agrego a la lista
 				product = {
