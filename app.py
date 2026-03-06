@@ -11,8 +11,10 @@ import re
 from datetime import datetime
 from openpyxl.utils import get_column_letter
 from PyQt6.QtWidgets import QMainWindow, QApplication, QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QMessageBox
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon, QFont
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QIcon, QFont, QDesktopServices
+import winreg
+import subprocess
 from PyQt6 import uic
 import sys
 from utils import SETTINGS, CAMBA_SHEETS, CAMBA_CATEGORIES, ROSARIO_URLS, MOST_USED_PRODUCTS_HH, MOST_USED_PRODUCTS_ETMA, MOST_USED_PRODUCTS_CAMBA 
@@ -31,38 +33,48 @@ class MainWindow(QMainWindow):
 		self.pushButton_config.clicked.connect(self.open_config)
 		self.pushButton_about.clicked.connect(self.open_about)
 
-		# Señales de pushbuttons de CAMBA
-		self.pushButton_alemite.clicked.connect(self.open_pdf)
-		self.pushButton_seeger.clicked.connect(self.open_pdf)
-		self.pushButton_arandela_grower.clicked.connect(self.open_pdf)
-		self.pushButton_arandela_plana.clicked.connect(self.open_pdf)
-		self.pushButton_bulon_unc.clicked.connect(self.open_pdf)
-		self.pushButton_bulon_unf.clicked.connect(self.open_pdf)
-		self.pushButton_chaveta_partida.clicked.connect(self.open_pdf)
-		self.pushButton_espina_elastica.clicked.connect(self.open_pdf)
-		self.pushButton_prisionero_cilindrica.clicked.connect(self.open_pdf)
-		self.pushButton_prisionero_sin.clicked.connect(self.open_pdf)
-		self.pushButton_prisionero_cuadrada.clicked.connect(self.open_pdf)
-		self.pushButton_tuerca_exagonal.clicked.connect(self.open_pdf)
-		self.pushButton_tuerca_castillo.clicked.connect(self.open_pdf)
-		self.pushButton_tuerca_torneada.clicked.connect(self.open_pdf)
-		self.pushButton_varilla_camba.clicked.connect(self.open_pdf)
-		self.pushButton_tornillo_metrico.clicked.connect(self.open_pdf)
-		self.pushButton_tornillo_inox.clicked.connect(self.open_pdf)
+		# Señales de pushbuttons de BULONERA CAMBA
+		self.pushButton_alemite.clicked.connect(lambda: self.open_pdf('camba', '22', 2))
+		self.pushButton_seeger.clicked.connect(lambda: self.open_pdf('camba', '35', 2))
+		self.pushButton_arandela_grower.clicked.connect(lambda: self.open_pdf('camba', '10', 4))
+		self.pushButton_arandela_plana.clicked.connect(lambda: self.open_pdf('camba', '16', 1))
+		self.pushButton_bulon_unc.clicked.connect(lambda: self.open_pdf('camba', '02', 1))
+		self.pushButton_bulon_unf.clicked.connect(lambda: self.open_pdf('camba', '07', 1))
+		self.pushButton_chaveta_partida.clicked.connect(lambda: self.open_pdf('camba', '19', 1))
+		self.pushButton_espina_elastica.clicked.connect(lambda: self.open_pdf('camba', '35', 1))
+		self.pushButton_prisionero_cilindrica.clicked.connect(lambda: self.open_pdf('camba', '14', 2))
+		self.pushButton_prisionero_sin.clicked.connect(lambda: self.open_pdf('camba', '14', 3))
+		self.pushButton_prisionero_cuadrada.clicked.connect(lambda: self.open_pdf('camba', '13', 1))
+		self.pushButton_tuerca_exagonal.clicked.connect(lambda: self.open_pdf('camba', '04', 1))
+		self.pushButton_tuerca_castillo.clicked.connect(
+			lambda: [
+				self.open_pdf('camba', '04', 5),
+				self.open_pdf('camba', '23', 1)
+			]
+		)
+		self.pushButton_tuerca_torneada.clicked.connect(lambda: self.open_pdf('camba', '23', 1))
+		self.pushButton_varilla_camba.clicked.connect(
+			lambda: [
+				self.open_pdf('camba', '11', 2),
+				self.open_pdf('camba', '17', 1)
+			]
+		)
+		self.pushButton_tornillo_metrico.clicked.connect(lambda: self.open_pdf('camba', '13', 2))
+		self.pushButton_tornillo_inox.clicked.connect(lambda: self.open_pdf('camba', '36', 8))
 
-		# Señales de pushbuttons de ROSARIO
-		self.pushButton_gummi.clicked.connect(self.open_pdf)
-		self.pushButton_tupac.clicked.connect(self.open_pdf)
-		self.pushButton_cadena.clicked.connect(self.open_pdf)
-		self.pushButton_cruceta.clicked.connect(self.open_pdf)
-		self.pushButton_cuchilla.clicked.connect(self.open_pdf)
-		self.pushButton_forro.clicked.connect(self.open_pdf)
-		self.pushButton_polea.clicked.connect(self.open_pdf)
-		self.pushButton_cardan.clicked.connect(self.open_pdf)
-		self.pushButton_rotula.clicked.connect(self.open_pdf)
-		self.pushButton_varilla_rosario.clicked.connect(self.open_pdf)
-		self.pushButton_soporte.clicked.connect(self.open_pdf)
-		self.pushButton_termo.clicked.connect(self.open_pdf)
+		# Señales de pushbuttons de ROSARIO AGRO
+		self.pushButton_gummi.clicked.connect(lambda: self.open_pdf('rosario', 'GUMMI'))
+		self.pushButton_tupac.clicked.connect(lambda: self.open_pdf('rosario', 'Tupac'))
+		self.pushButton_cadena.clicked.connect(lambda: self.open_pdf('rosario', 'Cadenas_LinkBelt'))
+		self.pushButton_cruceta.clicked.connect(lambda: self.open_pdf('rosario', 'Crucetas_ETMA'))
+		self.pushButton_cuchilla.clicked.connect(lambda: self.open_pdf('rosario', 'Cuchillas_Agro'))
+		self.pushButton_forro.clicked.connect(lambda: self.open_pdf('rosario', 'FORRO_DE_EMBRAGUE'))
+		self.pushButton_polea.clicked.connect(lambda: self.open_pdf('rosario', 'PoleasHF'))
+		self.pushButton_cardan.clicked.connect(lambda: self.open_pdf('rosario', 'Repuestos_cardanicos'))
+		self.pushButton_rotula.clicked.connect(lambda: self.open_pdf('rosario', 'Rotulas'))
+		self.pushButton_varilla_rosario.clicked.connect(lambda: self.open_pdf('rosario', 'ROSCAS_ACME'))
+		self.pushButton_soporte.clicked.connect(lambda: self.open_pdf('rosario', 'Soportes_FKD'))
+		self.pushButton_termo.clicked.connect(lambda: self.open_pdf('rosario', 'Termoplasticos'))
 
 		# Señales de comboboxes
 		self.comboBox_most_used_hh.activated.connect(self.load_category)
@@ -944,8 +956,108 @@ class MainWindow(QMainWindow):
 		for table in tables:
 			table.setRowCount(0)
 
-	def open_pdf():
-		pass
+
+	def open_pdf(self, brand, identifier, page_number=1):
+		"""
+		Busca el PDF correspondiente y lo abre, en orden de disponibilidad, con:
+		* Navegador predeterminado, en la página indicada.
+		* Visor PDF predeterminado del sistema, sin poder indicar la página.
+		
+		Parámetros:
+		- brand: 'camba' o 'rosario'
+		- identifier: número de hoja ('02') para Camba, o nombre ('Cuchillas_Jardin') para Rosario.
+		- page_number: La página donde se quiere arrancar (por defecto 1).
+		"""
+
+		base_path = Path(os.getenv('APPDATA')) / 'PrecioFacil' / 'listas' / brand
+		pdf_file_path = None
+
+		if not base_path.exists():
+			supplier = 'Bulonera Camba' if brand == 'camba' else 'Rosario Agro'
+			QMessageBox.warning(
+				self, 
+				'Carpeta no encontrada', 
+				f'No existe la carpeta de listas para {supplier}.'
+			)
+			return
+
+		# Busco la ruta del PDF respetando mayúsculas/minúsculas
+		if brand == 'camba':
+			pdf_files = list(base_path.glob(f'Hoja{identifier}*.pdf'))
+			if pdf_files:
+				pdf_file_path = pdf_files[0]
+		elif brand == 'rosario':
+			exact_path = base_path / f'{identifier}.pdf'
+			if exact_path.exists():
+				pdf_file_path = exact_path
+
+		# # Busco la ruta del PDF ignorando mayúsculas/minúsculas
+		# if brand == 'camba':
+		# 	target_prefix = f'hoja{identifier}'.lower()
+		# 	for pdf_file in base_path.glob('*.pdf'):
+		# 		if pdf_file.name.lower().startswith(target_prefix):
+		# 			pdf_file_path = pdf_file
+		# 			break  # Encontré el archivo, salgo del ciclo
+					
+		# elif brand == 'rosario':
+		# 	target_name = f'{identifier}.pdf'.lower()
+		# 	for pdf_file in base_path.glob('*.pdf'):
+		# 		if pdf_file.name.lower() == target_name:
+		# 			pdf_file_path = pdf_file
+		# 			break  # Encontré el archivo, salgo del ciclo
+
+		# Si encontré el archivo, lo abro
+		if pdf_file_path:
+			try:
+				# Intento con el navegador predeterminado
+				default_browser_exe = self.get_default_browser_exe()
+				if default_browser_exe:
+					# Formateo la ruta de Windows a un formato URI que el navegador entienda
+					pdf_uri = f'file:///{str(pdf_file_path).replace(os.sep, "/")}#page={page_number}'
+					subprocess.Popen([default_browser_exe, pdf_uri])
+				else:
+					# Como último recurso, intento con el lector de PDF predeterminado
+					url = QUrl.fromLocalFile(str(pdf_file_path))
+					QDesktopServices.openUrl(url)
+			except Exception as e:
+				QMessageBox.critical(
+					self, 
+					'Error', 
+					f'No se pudo abrir el PDF:\n{str(e)}'
+				)
+		else:
+			filename = f'Hoja {identifier}' if brand == 'camba' else identifier
+			QMessageBox.warning(
+				self, 
+				'Archivo no encontrado', 
+				f'No se pudo encontrar el PDF local para: <b>{filename}</b>.'
+			)
+
+
+	def get_default_browser_exe(self):
+		"""
+		Consulta el Registro de Windows para obtener el ejecutable del navegador 
+		web predeterminado.
+		"""
+
+		try:
+			# Busco qué programa maneja los links de internet (HTTP)
+			reg_url = r'Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice'
+			with winreg.OpenKey(winreg.HKEY_CURRENT_USER, reg_url) as key:
+				prog_id = winreg.QueryValueEx(key, 'ProgId')[0]
+
+			# Busco la ruta del ejecutable para ese programa
+			reg_cmd = rf'{prog_id}\shell\open\command'
+			with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, reg_cmd) as key:
+				command = winreg.QueryValueEx(key, '')[0]
+
+			# Limpio la ruta para tener la ruta "pura" del ejecutable, sin parámetros
+			if command.startswith('"'):
+				return command.split('"')[1]
+			else:
+				return command.split(' ')[0]
+		except Exception:
+			return None
 
 
 	def open_config(self):
