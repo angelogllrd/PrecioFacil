@@ -4,7 +4,7 @@ from PyQt6.QtCore import QSettings
 SETTINGS = QSettings('COMET', 'PrecioFacil')
 
 
-CAMBA_SHEETS = ('02', '04', '07', '10', '13', '14', '16', '17', '19', '22', '23', '35', '36')
+CAMBA_SHEETS = ('02', '04', '07', '10', '11', '13', '14', '16', '17', '19', '22', '23', '35', '36')
 
 
 ROSARIO_URLS = (

@@ -640,8 +640,29 @@ class MainWindow(QMainWindow):
 		"""
 		Lee el diccionario de reportes de PDF y genera los strings finales
 		para sumarlos al reporte general.
+
+		El diccionario de reporte puede terminar teniendo una estructura
+		similar a esta:
+
+		{
+			'camba': {
+				'excel': {
+					'reason': 'no_url',
+					'local_status': 'used'
+				},
+				'pdfs': {
+					'no_link': {
+						'missing': ['05'],
+						'local': ['01','04']
+					},
+					'no_download': {
+						'missing': [],
+						'local': ['10','11']
+					}
+				}
+			}
+		}
 		"""
-		print(self.report)
 		
 		maps = {
 			'no_url': 'Sin URL configurada para',
