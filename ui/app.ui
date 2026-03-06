@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>883</width>
-    <height>583</height>
+    <width>979</width>
+    <height>804</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -143,7 +143,7 @@
        </font>
       </property>
       <property name="currentIndex">
-       <number>3</number>
+       <number>2</number>
       </property>
       <property name="iconSize">
        <size>
@@ -391,6 +391,19 @@
                </column>
               </widget>
              </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="label_most_used_hh">
+               <property name="font">
+                <font>
+                 <pointsize>11</pointsize>
+                 <bold>false</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
             </layout>
            </widget>
           </item>
@@ -549,7 +562,7 @@
              <string>Más usados ⭐</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_6">
-             <item row="1" column="0">
+             <item row="2" column="0">
               <widget class="QTableWidget" name="tableWidget_defaults_etma">
                <property name="font">
                 <font>
@@ -650,6 +663,19 @@
                 </spacer>
                </item>
               </layout>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="label_most_used_etma">
+               <property name="font">
+                <font>
+                 <pointsize>11</pointsize>
+                 <bold>false</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
              </item>
             </layout>
            </widget>
@@ -777,7 +803,7 @@
                   </font>
                  </property>
                  <property name="placeholderText">
-                  <string>Ingrese código o descripción del producto</string>
+                  <string>Ingrese código, subcategoría o descripción del producto</string>
                  </property>
                 </widget>
                </item>
@@ -914,6 +940,19 @@
                  </item>
                 </layout>
                </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="label_most_used_camba">
+                 <property name="font">
+                  <font>
+                   <pointsize>11</pointsize>
+                   <bold>false</bold>
+                  </font>
+                 </property>
+                 <property name="text">
+                  <string/>
+                 </property>
+                </widget>
+               </item>
               </layout>
              </widget>
             </item>
@@ -939,6 +978,9 @@
                  <bold>false</bold>
                 </font>
                </property>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;BULON HEXAGONAL (GRUESO/UNC)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
                <property name="text">
                 <string>   2A</string>
                </property>
@@ -961,6 +1003,9 @@
                  <pointsize>11</pointsize>
                  <bold>false</bold>
                 </font>
+               </property>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;TUERCAS TORNEADAS&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="text">
                 <string>   23A</string>
@@ -985,6 +1030,9 @@
                  <bold>false</bold>
                 </font>
                </property>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;ARANDELAS GROWER&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
                <property name="text">
                 <string>   10D</string>
                </property>
@@ -1008,6 +1056,9 @@
                  <bold>false</bold>
                 </font>
                </property>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;ANILLOS DE SEGURIDAD SEEGER&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
                <property name="text">
                 <string>   35B</string>
                </property>
@@ -1030,6 +1081,9 @@
                  <pointsize>11</pointsize>
                  <bold>false</bold>
                 </font>
+               </property>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;PRISIONEROS CABEZA CUADRADA&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="text">
                 <string>   13A</string>
@@ -1067,6 +1121,9 @@
                  <bold>false</bold>
                 </font>
                </property>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;VARILLAS ROSCADAS&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
                <property name="text">
                 <string>   11B
    17A</string>
@@ -1091,6 +1148,9 @@
                  <bold>false</bold>
                 </font>
                </property>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;BULON HEXAGONAL (SAE/UNF)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
                <property name="text">
                 <string>   7A</string>
                </property>
@@ -1114,6 +1174,9 @@
                  <bold>false</bold>
                 </font>
                </property>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;CHAVETAS PARTIDAS&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
                <property name="text">
                 <string>   19A</string>
                </property>
@@ -1136,6 +1199,9 @@
                  <pointsize>11</pointsize>
                  <bold>false</bold>
                 </font>
+               </property>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;ESPINAS ELASTICAS&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="text">
                 <string>   35A</string>
@@ -1173,6 +1239,9 @@
                  <bold>false</bold>
                 </font>
                </property>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;TORNILLO INOXIDABLE CABEZA FREZADA&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
                <property name="text">
                 <string>   36H</string>
                </property>
@@ -1195,6 +1264,9 @@
                  <pointsize>11</pointsize>
                  <bold>false</bold>
                 </font>
+               </property>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;ALEMITES&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="text">
                 <string>   22B</string>
@@ -1219,6 +1291,9 @@
                  <bold>false</bold>
                 </font>
                </property>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;PRISIONEROS ALLEN CABEZA CILINDRICA&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
                <property name="text">
                 <string>   14B</string>
                </property>
@@ -1241,6 +1316,9 @@
                  <pointsize>11</pointsize>
                  <bold>false</bold>
                 </font>
+               </property>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;TUERCA CASTILLO UNF&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="text">
                 <string>   4E
@@ -1266,6 +1344,9 @@
                  <bold>false</bold>
                 </font>
                </property>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;PRISIONEROS ALLEN SIN CABEZA&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
                <property name="text">
                 <string>   14C</string>
                </property>
@@ -1288,6 +1369,9 @@
                  <pointsize>11</pointsize>
                  <bold>false</bold>
                 </font>
+               </property>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;ARANDELAS PLANAS&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="text">
                 <string>   16A</string>
@@ -1312,6 +1396,9 @@
                  <bold>false</bold>
                 </font>
                </property>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;TUERCA HEXAGONAL&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
                <property name="text">
                 <string>   4A</string>
                </property>
@@ -1334,6 +1421,9 @@
                  <pointsize>11</pointsize>
                  <bold>false</bold>
                 </font>
+               </property>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;TORNILLO METRICO CABEZA FREZADA&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="text">
                 <string>   13B</string>

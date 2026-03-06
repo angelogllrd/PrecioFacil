@@ -419,6 +419,7 @@ MOST_USED_PRODUCTS_HH = {
 
 MOST_USED_PRODUCTS_ETMA = {
     # Según https://zanini.com.ar/categoria-producto/transmisiones-cardanicas/crucetas/
+    # También en Crucetas_ETMA.pdf de Rosario Agro 
     'CRUCETA K-530': {
         'CR1047': 'CRUCETA PARA HORQUILLA K-530 A PALITOS',
     },
@@ -442,7 +443,7 @@ MOST_USED_PRODUCTS_ETMA = {
 
 MOST_USED_PRODUCTS_CAMBA = {
     # HOJA 22B
-    'ALEMITES - NIPLES DE ENGRASE': {
+    'ALEMITES': {
         # 1/8
         '25.18.R':  'ALEMITE 1/8 RECTO',
         '25.18.45': 'ALEMITE 1/8 CURVO 45°',
@@ -453,7 +454,7 @@ MOST_USED_PRODUCTS_CAMBA = {
         '25.14.90': 'ALEMITE 1/4 CURVO 90°',
     },
     # HOJA 35B
-    'ANILLOS DE SEGURIDAD (SEEGER)': {
+    'ANILLOS DE SEGURIDAD SEEGER': {
         # EXTERNO
         '214.5':    'ANILLO SEGURIDAD DIN 471 EXTERNO 5',
         '214.6':    'ANILLO SEGURIDAD DIN 471 EXTERNO 6',
@@ -666,7 +667,7 @@ MOST_USED_PRODUCTS_CAMBA = {
 
     },
     # HOJA 2A
-    'BULON EXAGONAL (GRUESO/UNC)': {
+    'BULON HEXAGONAL (GRUESO/UNC)': {
         # 3/16
         '20.5.12':      'BULON HEXAGONAL UNC 3/16 x 1/2',
         '20.5.16':      'BULON HEXAGONAL UNC 3/16 x 5/8',
@@ -1001,7 +1002,7 @@ MOST_USED_PRODUCTS_CAMBA = {
         '20.19.155.TR': 'BULÓN HEXAGONAL UNC TODO ROSCA 3/4 x 6',
     },
     # HOJA 7A
-    'BULON EXAGONAL (SAE/UNF)': {
+    'BULON HEXAGONAL (SAE/UNF)': {
         # 1/4
         '21.6.12':   'BULON HEXAGONAL UNF 1/4 x 1/2',
         '21.6.16':   'BULON HEXAGONAL UNF 1/4 x 5/8',
@@ -1422,7 +1423,7 @@ MOST_USED_PRODUCTS_CAMBA = {
     'ESPINAS ELASTICAS': {
 
     },
-    'PRISIONERO ALLEN C/CILINDRICA': {
+    'PRISIONERO ALLEN CABEZA CILINDRICA': {
 
     },
     'PRISIONERO ALLEN SIN CABEZA': {
@@ -1431,7 +1432,7 @@ MOST_USED_PRODUCTS_CAMBA = {
     'PRISIONEROS CABEZA CUADRADA': {
 
     },
-    'TUERCA EXAGONAL': {
+    'TUERCA HEXAGONAL': {
 
     },
     'TUERCA CASTILLO UNF': {
@@ -1443,10 +1444,10 @@ MOST_USED_PRODUCTS_CAMBA = {
     'VARILLAS ROSCADAS': {
 
     },
-    'TORNILLO METR. CAB. FREZADA': {
+    'TORNILLO METRICO CABEZA FREZADA': {
 
     },
-    'TORNILLO INOX CAB. FREZADA': {
+    'TORNILLO INOXIDABLE CABEZA FREZADA': {
 
     },
 }

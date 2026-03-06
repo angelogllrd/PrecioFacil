@@ -26,10 +26,12 @@ class MainWindow(QMainWindow):
 		# Cargo la UI
 		uic.loadUi('ui/app.ui', self)
 
-		# Señales de pushbuttons
+		# Señales de pushbuttons inferiores
 		self.pushButton_theme.clicked.connect(self.change_theme)
 		self.pushButton_config.clicked.connect(self.open_config)
 		self.pushButton_about.clicked.connect(self.open_about)
+
+		# Señales de pushbuttons de CAMBA
 		self.pushButton_alemite.clicked.connect(self.open_pdf)
 		self.pushButton_seeger.clicked.connect(self.open_pdf)
 		self.pushButton_arandela_grower.clicked.connect(self.open_pdf)
@@ -47,6 +49,8 @@ class MainWindow(QMainWindow):
 		self.pushButton_varilla_camba.clicked.connect(self.open_pdf)
 		self.pushButton_tornillo_metrico.clicked.connect(self.open_pdf)
 		self.pushButton_tornillo_inox.clicked.connect(self.open_pdf)
+
+		# Señales de pushbuttons de ROSARIO
 		self.pushButton_gummi.clicked.connect(self.open_pdf)
 		self.pushButton_tupac.clicked.connect(self.open_pdf)
 		self.pushButton_cadena.clicked.connect(self.open_pdf)
@@ -76,7 +80,7 @@ class MainWindow(QMainWindow):
 		# Aplico tema claro por defecto
 		self.apply_theme('light')
 
-		self.showMaximized() # Abro la ventana maximizada
+		# self.showMaximized() # Abro la ventana maximizada
 
 		self.initialize()
 
@@ -86,7 +90,7 @@ class MainWindow(QMainWindow):
 	# PROCESAMIENTO INICIAL DE LISTAS
 	############################################################################################
 
-	# CÓDIGO PRINCIPAL PARA LISTAS EXCEL
+	# CÓDIGO PRINCIPAL
 	# ------------------------------------------------------------------------------------------
 
 	def initialize(self):
@@ -94,70 +98,63 @@ class MainWindow(QMainWindow):
 
 		# Inicializo variables
 		suppliers = {
-			'tdc': {
-				'name': 'Tienda del Cardan',
-				'brands': ('hh', 'etma')
-			},
-			'camba': {
-				'name': 'Bulonera Camba',
-				'brands': ('camba',)
-			}
+			'tdc':   ('hh', 'etma'),
+			'camba': ('camba',)
 		}
 		self.all_products_hh = []
 		self.all_products_etma = []
 		self.all_products_camba = []
-		self.report = [] # acumulador de mensajes
+		self.report = {}
 
 		# Vacio todo (por si se están recargando listas)
 		self.empty_everything()
 
-		for supplier, config in suppliers.items():
+		for supplier, brands in suppliers.items():
 			
 			# Recupero la URL del proveedor
 			supplier_url = self.get_url_from_settings(supplier)
 			if not supplier_url:
-				self.try_local_lists(
-					config['brands'],
-					f'Sin URL configurada para <i>{config['name']}</i>'
-				)
+				self.handle_supplier_down(brands, 'no_url')
 				continue
 
-			# Obtengo el HTML de esa URL
+			# Obtengo el HTML de esa URL y lo parseo
 			try:
 				html = self.download_html(supplier_url)
+				soup = bs4.BeautifulSoup(html, 'html.parser')
 			except Exception:
-				self.try_local_lists(
-					config['brands'], 
-					f'Imposible acceder a <i>{config['name']}</i>'
-				)
+				self.handle_supplier_down(brands, 'no_access')
 				continue
 
-			# Tengo HTML válido: proceso cada marca
-			for brand in config['brands']:
-				self.process_brand(html, brand)
+			# Proceso los excel de cada marca
+			for brand in brands:
+				self.process_brand(soup, brand)
+
+			# Si el proveedor es CAMBA, busco los PDF de las hojas
+			if supplier == 'camba':
+				self.process_camba_pdfs(soup)
+
+		# Proceso los links fijos de ROSARIO
+		self.process_rosario_pdfs()
 
 		# Muestro el reporte
 		if self.report:
 			QMessageBox.information(
 				self,
 				'Información de la carga',
-				'<br>'.join(self.report)
+				self.prepare_report()
 			)
+
 
 	# PROCESAMIENTO POR MARCA
 	# ------------------------------------------------------------------------------------------
 
-	def process_brand(self, html, brand):
-		"""Busca la URL de la lista en el HTML, la descarga y la procesa."""
-
-		soup = bs4.BeautifulSoup(html, 'html.parser')
+	def process_brand(self, soup, brand):
+		"""Busca la URL de la lista excel en el soup, la descarga y la procesa."""
 
 		# Busco link de la lista
 		list_url = self.get_list_url_from_soup(soup, brand)
 		if not list_url:
-			local_status = self.try_local_list(brand)
-			msg = self.build_message(brand, local_status, 'No se encontró link')
-			self.report.append(msg)
+			self.check_local_excel_list(brand, 'no_link')
 			return
 
 		# Descargo la lista
@@ -170,52 +167,161 @@ class MainWindow(QMainWindow):
 				SETTINGS.setValue('camba_last_date', camba_last_date)
 
 		except Exception:
-			local_status = self.try_local_list(brand)
-			msg = self.build_message(brand, local_status, 'No se pudo descargar')
-			self.report.append(msg)
+			self.check_local_excel_list(brand, 'no_download')
 			return
 
 		# Proceso excel descargado
 		try:
 			self.process_excel(excel_file_path, brand)
-		except Exception:
-			self.report.append(f'❌ <b>{brand.upper()}</b>: Error procesando lista descargada.')
+		except Exception as e:
+			self.report.setdefault(brand, {})['excel'] = {
+				'local_status': 'local_error'
+			}
 
 
-	# FALLBACKS (hubo error y se debe buscar lista local descargada previamente)
+	def process_camba_pdfs(self, soup):
+		"""Procesa los PDF de las hojas de Bulonera Camba buscando en el soup."""
+
+		# Construyo ruta de la carpeta destino
+		base_path = Path(os.getenv('APPDATA')) / 'PrecioFacil' / 'listas' / 'camba'
+		base_path.mkdir(parents=True, exist_ok=True)
+
+		for sheet_num in CAMBA_SHEETS:
+			# Busco el link de la hoja
+			a_elem = soup.find(
+				'a',
+				href=True,
+				string=lambda s: s and f'Hoja {sheet_num}' in s
+			)
+			if not a_elem:
+				self.check_local_pdf_list('camba', sheet_num, 'no_link')
+				continue
+
+			# Obtengo la ruta completa
+			pdf_url = a_elem['href']
+			pdf_original_name = pdf_url.split('=')[-1] + '.pdf'
+			pdf_file_path = base_path / pdf_original_name
+
+			# Si ya existe con este nombre exacto, lo salteamos
+			if pdf_file_path.exists():
+				continue
+
+			# Descargo el PDF
+			try:
+				response = requests.get(pdf_url, timeout=10)
+				response.raise_for_status()
+
+				# Borro versiones viejas del mismo número de hoja
+				for old_pdf in base_path.glob(f'Hoja{sheet_num}*.pdf'):
+					old_pdf.unlink()
+
+				# Guardo el archivo descargado
+				with open(pdf_file_path, 'wb') as f:
+					f.write(response.content)
+			except Exception:
+				self.check_local_pdf_list('camba', sheet_num, 'no_download')
+
+
+	def process_rosario_pdfs(self):
+		"""Descarga los PDF de ROSARIO AGRO desde links fijos, sobreescribiendo."""
+
+		base_path = Path(os.getenv('APPDATA')) / 'PrecioFacil' / 'listas' / 'rosario'
+		base_path.mkdir(parents=True, exist_ok=True)
+
+		for pdf_url in ROSARIO_URLS:
+			# Obtengo la ruta completa
+			pdf_original_name = pdf_url.split('=')[-1]
+			pdf_file_path = base_path / pdf_original_name
+
+			# Descargo el PDF
+			try:
+				response = requests.get(pdf_url, timeout=10)
+				response.raise_for_status()
+
+				with open(pdf_file_path, 'wb') as f:
+					f.write(response.content)
+			except Exception:
+				self.check_local_pdf_list('rosario', pdf_file_path.stem, 'no_download') # paso solo nombre del PDF
+
+
+	# FALLBACKS (hubo error y se deben buscar listas locales descargadas previamente)
 	# ------------------------------------------------------------------------------------------
 
-	def try_local_lists(self, brands, reason):
+	def handle_supplier_down(self, brands, reason):
 		"""
 		Fallback general llamado cuando:
 		  * No hay URL del proveedor.
 		  * No se pudo obtener HTML de la URL.
-		Llama al fallback de marca por cada marca del proveedor.
+		Llama al fallback de marca por cada marca del proveedor. Además, 
+		si es CAMBA, chequea las hojas PDF locales.
 		"""
 		for brand in brands:
-			local_status = self.try_local_list(brand)
-			msg = self.build_message(brand, local_status, reason)
-			self.report.append(msg)
+			self.check_local_excel_list(brand, reason)
+
+			# Si es CAMBA, compruebo PDFs locales
+			if brand == 'camba':
+				for sheet_num in CAMBA_SHEETS:
+					self.check_local_pdf_list('camba', sheet_num, reason)
 
 
-	def try_local_list(self, brand):
+	def check_local_excel_list(self, brand, reason):
 		"""
 		Fallback por marca llamado cuando:
 		  * No se encontró el link de la lista en el HTML.
 		  * No se pudo descargar el excel.
-		Comprueba si existe una excel local previamente descargado y lo procesa.
+		Comprueba si existe un excel local previamente descargado y lo procesa.
 		"""
 
-		excel_file_path = self.search_existing_excel(brand)
-		if not excel_file_path:
-			return 'local_not_found'
+		base_path = Path(os.getenv('APPDATA')) / 'PrecioFacil' / 'listas' / brand
+		excel_file_path = None
 
-		# Proceso excel previo
-		try:
-			self.process_excel(excel_file_path, brand)
-			return 'local_used'
-		except Exception:
-			return 'local_error'
+		if base_path.exists():
+			excel_files = list(base_path.glob('*.xlsx'))
+			if excel_files:
+				excel_file_path = excel_files[0]
+
+		if excel_file_path:
+			try:
+				self.process_excel(excel_file_path, brand)
+				local_status = 'local_used'
+			except Exception:
+				local_status = 'local_error'
+		else:
+			local_status = 'local_missing'
+
+		self.report.setdefault(brand, {})['excel'] = {
+			'reason': reason,
+			'local_status': local_status
+		}
+
+
+	def check_local_pdf_list(self, brand, identifier, reason):
+		"""
+		Verifica existencia local de un PDF cuando falla descarga/encontrar link.
+		* Para CAMBA: identifier es el número de hoja (por ej: '02')
+		* Para ROSARIO: identifier es el nombre del archivo (ej: 'Cuchillas_Jardin')
+		"""
+
+		base_path = Path(os.getenv('APPDATA')) / 'PrecioFacil' / 'listas' / brand
+		has_local = False
+
+		if base_path.exists():
+			if brand == 'camba':
+				# Busco PDFs con el número de hoja
+				pdf_files = list(base_path.glob(f'Hoja{identifier}*.pdf'))
+				if pdf_files:
+					has_local = True
+			elif brand == 'rosario':
+				if (base_path / f'{identifier}.pdf').exists():
+					has_local = True
+
+		# Guardo resultado para agruparlo después
+		pdfs = self.report.setdefault(brand, {}).setdefault('pdfs', {})
+		entry = pdfs.setdefault(reason, {'missing': [], 'local': []})
+		if has_local:
+			entry['local'].append(identifier)
+		else:
+			entry['missing'].append(identifier)
 
 
 	#  AUXILIARES
@@ -229,69 +335,6 @@ class MainWindow(QMainWindow):
 		response = requests.get(url, timeout=10)
 		response.raise_for_status()
 		return response.text
-
-
-	def build_message(self, brand, local_status, reason):
-		"""Construye el mensaje para el reporte en base al resultado local."""
-
-		msg_dict = {
-			'local_used': {
-				'sym': '⚠️',
-				'txt': 'Usando lista local'
-			},
-			'local_not_found': {
-				'sym': '❌',
-				'txt': 'Lista local no encontrada'
-			},
-			'local_error': {
-				'sym': '❌',
-				'txt': 'Error al procesar lista local'
-			}
-		}
-
-		return (
-			f'{msg_dict[local_status]["sym"]} <b>{brand.upper()}</b>: '
-			f'{reason}. '
-			f'{msg_dict[local_status]["txt"]}.'
-		)
-
-
-	def resolve_camba_date(self, soup, excel_file_path):
-		"""
-		Determina qué fecha asociar al excel descargado de CAMBA usando, por prioridad:
-		1) HTML
-		2) nombre del archivo
-		3) fecha actual
-		"""
-
-		# Busco en el HTML
-		date = self.extract_camba_date_from_soup(soup)
-		if date:
-			return date
-
-		# Busco en el nombre de archivo
-		date = self.extract_date_from_filename(excel_file_path)
-		if date:
-			return date
-
-		# Como último recurso: fecha actual
-		return datetime.now().strftime('%d/%m/%Y')
-
-
-	def extract_camba_date_from_soup(self, soup):
-		"""Extrae la fecha actual de las listas de CAMBA desde el HTML."""
-
-		a = soup.find(
-			'a',
-			href=True,
-			string=lambda s: s and 'lista indice' in s.strip().lower()
-		)
-
-		if not a:
-			return None
-
-		match = re.search(r'\d{2}/\d{2}/\d{4}', a.get_text())
-		return match.group() if match else None
 
 
 	def get_list_url_from_soup(self, soup, brand):
@@ -370,17 +413,51 @@ class MainWindow(QMainWindow):
 		return excel_file_path
 
 
-	def search_existing_excel(self, brand):
-		"""Busca un excel previo en la carpeta de la marca, y si existe, retorna su ruta."""
-		
-		base_path = Path(os.getenv('APPDATA')) / 'PrecioFacil' / 'listas' / brand
+	def resolve_camba_date(self, soup, excel_file_path):
+		"""
+		Determina qué fecha asociar al excel descargado de CAMBA usando, por prioridad:
+		1) HTML
+		2) nombre del archivo
+		3) fecha actual
+		"""
 
-		if not base_path.exists():
+		# Busco en el HTML
+		date = self.extract_camba_date_from_soup(soup)
+		if date:
+			return date
+
+		# Busco en el nombre de archivo
+		date = self.extract_date_from_filename(excel_file_path)
+		if date:
+			return date
+
+		# Como último recurso: fecha actual
+		return datetime.now().strftime('%d/%m/%Y')
+
+
+	def extract_camba_date_from_soup(self, soup):
+		"""Extrae la fecha actual de las listas de CAMBA desde el HTML."""
+
+		a_elem = soup.find(
+			'a',
+			href=True,
+			string=lambda s: s and 'lista indice' in s.strip().lower()
+		)
+
+		if not a_elem:
 			return None
 
-		excel_files = list(base_path.glob('*.xlsx'))
+		match = re.search(r'\d{2}/\d{2}/\d{4}', a_elem.get_text())
+		return match.group() if match else None
 
-		return excel_files[0] if excel_files else None
+
+	def extract_date_from_filename(self, path):
+		"""Extrae la fecha desde el nombre del archivo excel de CAMBA."""
+		
+		match = re.search(r'\d{2}-\d{2}-\d{4}', path)
+		if match:
+			return match.group().replace('-', '/')
+		return None
 
 
 	def process_excel(self, excel_file_path, brand):
@@ -413,7 +490,7 @@ class MainWindow(QMainWindow):
 		sheet = wb[wb.sheetnames[0]]
 
 		# Busco letras de columnas de producto
-		header_cols = self.search_header_cols(sheet)
+		header_cols = self.search_header_cols(sheet, brand)
 
 		# Busco número de fila de primer producto
 		first_row = self.search_first_row(sheet, header_cols['price_col'])
@@ -437,8 +514,35 @@ class MainWindow(QMainWindow):
 		self.load_more_used(bmap[brand]['combo'], products, bmap[brand]['most'])
 
 
-	def search_header_cols(self, sheet):
+	def search_header_cols(self, sheet, brand):
 		"""Retorna un diccionario con la posición (letra) de cada columna."""
+
+		default_cols = {
+			'hh': {
+				'code_col': 'A',
+				'subcategory_col': 'B',
+				'description_col': 'C',
+				'price_col': 'E'
+			},
+			'etma': {
+				'code_col': 'A',
+				'subcategory_col': 'B',
+				'description_col': 'C',
+				'price_col': 'E'
+			},
+			'camba': {
+				'code_col': 'C',
+				'subcategory_col': 'J',
+				'description_col': 'B',
+				'price_col': 'E'
+			}
+		}
+
+		# Valores por defecto en caso de que no encuentre alguna
+		code_col = default_cols[brand]['code_col']
+		subcategory_col = default_cols[brand]['subcategory_col']
+		description_col = default_cols[brand]['description_col']
+		price_col = default_cols[brand]['price_col']
 
 		for row in sheet['A1':'E20']:
 			for cell in row:
@@ -449,21 +553,21 @@ class MainWindow(QMainWindow):
 
 					# Recorro fila de encabezados e identifico cada uno
 					for header_cell in sheet[header_row]:
-						print(get_column_letter(header_cell.column))
 						value = str(header_cell.value).strip().lower()
 						if value in ('subrubro', 'sub rubro', 'rubro'):
 							subcategory_col = get_column_letter(header_cell.column)
-						elif value in ('none', 'descripción', 'descripcion', 'desc', 'articulo', 'artículo'):
+						elif value in ('descripción', 'descripcion', 'desc', 'articulo', 'artículo'):
 							description_col = get_column_letter(header_cell.column)
 						elif value in ('precio + iva', 'precio'):
 							price_col = get_column_letter(header_cell.column)
+					break
 
-					return {
-						'code_col': code_col,
-						'subcategory_col': subcategory_col,
-						'description_col': description_col,
-						'price_col': price_col
-					}
+		return {
+			'code_col': code_col,
+			'subcategory_col': subcategory_col,
+			'description_col': description_col,
+			'price_col': price_col
+		}
 
 
 	def search_first_row(self, sheet, price_col):
@@ -478,7 +582,7 @@ class MainWindow(QMainWindow):
 
 				# Compruebo si es un monto
 				try:
-					float(str(cell.value).replace('.', '').replace(',', '.'))
+					float(str(value).replace('.', '').replace(',', '.'))
 					return cell.row
 				except (ValueError, TypeError):
 					continue
@@ -518,6 +622,89 @@ class MainWindow(QMainWindow):
 			if sheet[col + str(row)].value is None:
 				return False
 		return True
+
+
+	def prepare_report(self):
+		"""
+		Lee el diccionario de reportes de PDF y genera los strings finales
+		para sumarlos al reporte general.
+		"""
+		print(self.report)
+		
+		maps = {
+			'no_url': 'Sin URL configurada para',
+			'no_access': 'Imposible acceder a',
+			'no_link': 'No se encontró link',
+			'no_download': 'No se pudo descargar',
+			'local_used': 'Usando lista local',
+			'local_missing': 'Lista local no encontrada',
+			'local_error': 'Error al procesar lista'
+		}
+		
+		brand_to_supplier = {
+			'hh': ' Tienda del Cardan',
+			'etma': ' Tienda del Cardan',
+			'camba': ' Bulonera Camba',
+			'rosario': ' Rosario Agro'
+		}
+		
+		msg = ''
+
+		for brand, data in self.report.items():
+			msg += '<br><br>' if msg else ''
+			msg += f'<b><u>{brand.upper()}</u></b>'
+			
+			if 'excel' in data:
+				msg += '<br><b>Lista Excel</b>:'
+				
+				local_status = data['excel']['local_status']
+				reason = data['excel']['reason']
+				symbol = '⚠️' if local_status == 'local_used' else '❌'
+				local_status_str = maps[local_status]
+
+				if local_status == 'local_error':
+					if reason is None:
+						local_status_str += ' descargada'
+					else:
+						local_status_str += ' local'
+					
+				reason_str = '' if not reason else maps[reason]
+
+				supplier_str = f'<i>{brand_to_supplier[brand]}</i>' if reason in ('no_url', 'no_access') else ''
+
+				msg += (
+					f' {symbol} {reason_str}{supplier_str}. '
+					f'{local_status_str}.'
+				)
+
+			if 'pdfs' in data:
+				msg += '<br><b>Listas PDF</b>:'
+
+				for reason, info in data['pdfs'].items():
+
+					sheets = info['missing'] + info['local']
+					sheets.sort() # ordeno las hojas por número
+
+					supplier_str = f'<i>{brand_to_supplier[brand]}</i>' if reason in ('no_url', 'no_access') else ''
+
+					msg += f'<br>- Hojas {", ".join(sheets)}: {maps[reason]}{supplier_str}.'
+
+					if info['local']:
+						if set(info['local']) == set(sheets) and len(sheets) > 1:
+							sheets_str = 'todas'
+						else:
+							sheets_str = ", ".join(info["local"])
+						msg += f' ⚠️ Usando lista local para {sheets_str}.'
+
+					if info['missing']:
+						if set(info['missing']) == set(sheets) and len(sheets) > 1:
+							sheets_str = 'ninguna'
+						else:
+							sheets_str = ", ".join(info["missing"])
+						msg += f' ❌ Lista local no encontrada para {sheets_str}.'
+						
+
+		return msg
 
 
 
@@ -563,12 +750,11 @@ class MainWindow(QMainWindow):
 			self.tableWidget_defaults_camba
 		)
 
-		# Fijo ancho de "CÓDIGO", "SUBCATEGORÍA" y "PRECIO + IVA" y hago que "DESCRIPCIÓN" ocupe el resto
 		for table in tables:
-			table.setColumnWidth(0, 110)
-			table.setColumnWidth(1, 400)
-			table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-			table.setColumnWidth(3, 160)
+			table.setColumnWidth(0, 110) # fijo
+			table.setColumnWidth(1, 400) # fijo
+			table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch) # ocupa el resto
+			table.setColumnWidth(3, 160) # fijo
 
 
 	def show_validity_date(self, sheet, label):
@@ -611,9 +797,9 @@ class MainWindow(QMainWindow):
 			for product_code, product_description in products_in_category.items():
 				# Busco el producto dentro de todos los productos
 				for product in all_products:
-					if product_code.startswith('CR1024') and product_code != product['code']: # Evita duplicados en este caso particular
-						continue
-					if product_code in product['code']:
+					# if product_code.startswith('CR1024') and product_code != product['code']: # Evita duplicados en este caso particular
+					# 	continue
+					if product_code == product['code']:
 						products.append({
 								'code': product['code'],
 								'subcategory': product['subcategory'],
@@ -630,7 +816,7 @@ class MainWindow(QMainWindow):
 	def load_category(self):
 		"""Lista los productos mas usados de la categoría seleccionada."""
 
-		# Determino si se seleccionó categoría en HH o en ETMA, y asigno variables
+		# Determino si se seleccionó categoría en HH, ETMA, o CAMBA, y asigno variables
 		sender = self.sender()
 		if sender is self.comboBox_most_used_hh:
 			table_widget = self.tableWidget_defaults_hh
@@ -711,20 +897,14 @@ class MainWindow(QMainWindow):
 		search_tables = {
 			self.tableWidget_search_hh: self.label_search_hh,
 			self.tableWidget_search_etma: self.label_search_etma,
-			self.tableWidget_search_camba: self.label_search_camba
+			self.tableWidget_search_camba: self.label_search_camba,
+			self.tableWidget_defaults_hh: self.label_most_used_hh,
+			self.tableWidget_defaults_etma: self.label_most_used_etma,
+			self.tableWidget_defaults_camba: self.label_most_used_camba,
 		}
-		if table_widget in search_tables:
-			quantity = len(products)
-			s = '' if quantity == 1 else 's'
-			search_tables[table_widget].setText(f'{quantity} producto{s} encontrado{s}')
-
-
-	def extract_date_from_filename(self, path):
-		"""Extrae la fecha desde el nombre del archivo excel de CAMBA."""
-		match = re.search(r'\d{2}-\d{2}-\d{4}', path)
-		if match:
-			return match.group().replace('-', '/')
-		return None
+		quantity = len(products)
+		s = '' if quantity == 1 else 's'
+		search_tables[table_widget].setText(f'{quantity} producto{s} encontrado{s}')
 
 
 	def empty_everything(self):
@@ -738,6 +918,9 @@ class MainWindow(QMainWindow):
 			self.label_search_hh,
 			self.label_search_etma,
 			self.label_search_camba,
+			self.label_most_used_hh,
+			self.label_most_used_etma,
+			self.label_most_used_camba,
 			self.label_validity_date_hh,
 			self.label_validity_date_etma,
 			self.label_validity_date_camba,
@@ -760,6 +943,9 @@ class MainWindow(QMainWindow):
 
 		for table in tables:
 			table.setRowCount(0)
+
+	def open_pdf():
+		pass
 
 
 	def open_config(self):
