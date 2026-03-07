@@ -642,13 +642,20 @@ class MainWindow(QMainWindow):
 		para sumarlos al reporte general.
 
 		El diccionario de reporte puede terminar teniendo una estructura
-		similar a esta:
+		similar a esta, donde solamente se agrega algo cuando hubo un 
+		problema:
 
 		{
+			'hh': {
+				'excel': {
+					'reason': 'no_link',
+					'local_status': 'local_used'
+				}
+			}
 			'camba': {
 				'excel': {
 					'reason': 'no_url',
-					'local_status': 'used'
+					'local_status': 'local_used'
 				},
 				'pdfs': {
 					'no_link': {

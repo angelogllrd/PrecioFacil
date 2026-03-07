@@ -286,7 +286,7 @@
              </font>
             </property>
             <property name="title">
-             <string>Más usados ⭐</string>
+             <string>Más usados 🔥</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_3">
              <item row="0" column="0">
@@ -559,7 +559,7 @@
              </font>
             </property>
             <property name="title">
-             <string>Más usados ⭐</string>
+             <string>Más usados 🔥</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_6">
              <item row="2" column="0">
@@ -832,7 +832,7 @@
                </font>
               </property>
               <property name="title">
-               <string>Más usados ⭐</string>
+               <string>Más usados 🔥</string>
               </property>
               <layout class="QGridLayout" name="gridLayout_10">
                <item row="2" column="0">
@@ -967,7 +967,7 @@
              </font>
             </property>
             <property name="title">
-             <string>Hojas principales</string>
+             <string>Hojas principales 🏆</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_11">
              <item row="3" column="0">

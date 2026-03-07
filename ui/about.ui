@@ -6,20 +6,20 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>487</width>
-    <height>182</height>
+    <width>451</width>
+    <height>199</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
-    <width>487</width>
-    <height>182</height>
+    <width>451</width>
+    <height>199</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
-    <width>487</width>
-    <height>182</height>
+    <width>451</width>
+    <height>199</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -121,7 +121,7 @@ angelogallardi@gmail.com</string>
           <item row="1" column="0" colspan="2">
            <widget class="QLabel" name="label_4">
             <property name="text">
-             <string>Buscador simplificado para listas de precios de la Tienda del Cardan, Bulonera Camba y Rosario Agroindustrial.</string>
+             <string>Buscador de listas de precios de Tienda del Cardan, Bulonera Camba y Rosario Agroindustrial con actualización automática desde internet.</string>
             </property>
             <property name="wordWrap">
              <bool>true</bool>
