@@ -558,7 +558,7 @@ class Worker(QObject):
 
 
 	def extract_validity_date(self, brand, sheet):
-		"""Busca la fecha de validez de precios en la hoja."""
+		"""Busca y retorna la fecha de validez del excel de la marca."""
 
 		# Para CAMBA se busca en la configuración guardada
 		if brand == 'camba':
@@ -685,13 +685,10 @@ class MainWindow(QMainWindow):
 		self.lineEdit_search_etma.textEdited.connect(self.filter_products)
 		self.lineEdit_search_camba.textEdited.connect(self.filter_products)
 
-		# Configuro headers de tablas
-		self.format_headers()
-
-		# Aplico tema claro por defecto
-		self.apply_theme('light')
-
-		self.showMaximized() # Abro la ventana maximizada
+		# Configuraciones visuales varias
+		self.format_headers() # Configuro headers de tablas
+		self.apply_theme('light') # Tema claro por defecto
+		self.showMaximized() # Ventana maximizada
 
 		self.initialize()
 
@@ -702,7 +699,7 @@ class MainWindow(QMainWindow):
 		# Vacio todo por si es una recarga
 		self.empty_everything()
 
-		# Instancio el dialog personalizado
+		# Creo el dialog de progreso
 		self.progress_dialog = ProgressDialog(self)
 		
 		# Configuro el hilo y el worker
@@ -710,7 +707,7 @@ class MainWindow(QMainWindow):
 		self.worker = Worker()
 		self.worker.moveToThread(self.thread)
 
-		# Conecto las señales del Worker a los widgets del dialog
+		# Conecto las señales del Worker al dialog
 		self.worker.message_changed.connect(self.progress_dialog.label.setText)
 		self.worker.progress_changed.connect(self.progress_dialog.progressBar.setValue)
 		
@@ -723,7 +720,7 @@ class MainWindow(QMainWindow):
 		self.worker.finished.connect(self.worker.deleteLater)
 		self.thread.finished.connect(self.thread.deleteLater)
 
-		# Muestro el diálogo de forma modal (bloquea la ventana principal) e inicio el hilo
+		# Inicio el hilo y muestro el dialog de forma modal
 		self.thread.start()
 		self.progress_dialog.exec()
 
@@ -1209,7 +1206,7 @@ class MainWindow(QMainWindow):
 
 
 	def open_config(self):
-		"""Abre un dialogo para editar la configuración."""
+		"""Abre un dialog para editar la configuración."""
 
 		dialog = ConfigurationDialog(self)
 		dialog.exec()
@@ -1220,7 +1217,7 @@ class MainWindow(QMainWindow):
 
 
 	def open_about(self):
-		"""Abre un diálogo de Acerca de."""
+		"""Abre un dialog de Acerca de."""
 
 		dialog = AboutDialog(self)
 		dialog.exec()
@@ -1276,6 +1273,24 @@ class ProgressDialog(QDialog):
 		# Quito el botón de cerrar de la ventana para que el usuario no lo interrumpa
 		self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
 
+		# Centro el dialog en la pantalla
+		self.center()
+
+
+	def center(self):
+		"""Centra el dialog en la pantalla"""
+
+		# Rectángulo que define la geometría del dialog
+		qr = self.frameGeometry()
+
+		# Punto central de la pantalla
+		cp = self.screen().availableGeometry().center()
+
+		# Muevo el centro del rectángulo del dialog al centro de la pantalla
+		qr.moveCenter(cp)
+
+		# Muevo el dialog a la posición de la esquina superior izquierda del rectángulo ya centrado
+		self.move(qr.topLeft())
 
 
 # Initialize the app
