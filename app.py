@@ -11,7 +11,7 @@ import re
 from datetime import datetime
 from openpyxl.utils import get_column_letter
 from PyQt6.QtWidgets import QMainWindow, QApplication, QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QMessageBox
-from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtCore import Qt, QUrl, QObject, QThread, pyqtSignal
 from PyQt6.QtGui import QIcon, QFont, QDesktopServices
 import winreg
 import subprocess
@@ -21,108 +21,68 @@ from utils import SETTINGS, CAMBA_SHEETS, CAMBA_CATEGORIES, ROSARIO_URLS, MOST_U
 
 
 
-class MainWindow(QMainWindow):
-	def __init__(self):
-		super().__init__()
+class Worker(QObject):
+	# Señales para actualizar el ProgressDialog
+	progress_changed = pyqtSignal(int)
+	message_changed = pyqtSignal(str)
 
-		# Cargo la UI
-		uic.loadUi('ui/app.ui', self)
-
-		# Señales de pushbuttons inferiores
-		self.pushButton_theme.clicked.connect(self.change_theme)
-		self.pushButton_config.clicked.connect(self.open_config)
-		self.pushButton_about.clicked.connect(self.open_about)
-
-		# Señales de pushbuttons de BULONERA CAMBA
-		self.pushButton_alemite.clicked.connect(lambda: self.open_pdf('camba', '22', 2))
-		self.pushButton_seeger.clicked.connect(lambda: self.open_pdf('camba', '35', 2))
-		self.pushButton_arandela_grower.clicked.connect(lambda: self.open_pdf('camba', '10', 4))
-		self.pushButton_arandela_plana.clicked.connect(lambda: self.open_pdf('camba', '16', 1))
-		self.pushButton_bulon_unc.clicked.connect(lambda: self.open_pdf('camba', '02', 1))
-		self.pushButton_bulon_unf.clicked.connect(lambda: self.open_pdf('camba', '07', 1))
-		self.pushButton_chaveta_partida.clicked.connect(lambda: self.open_pdf('camba', '19', 1))
-		self.pushButton_espina_elastica.clicked.connect(lambda: self.open_pdf('camba', '35', 1))
-		self.pushButton_prisionero_cilindrica.clicked.connect(lambda: self.open_pdf('camba', '14', 2))
-		self.pushButton_prisionero_sin.clicked.connect(lambda: self.open_pdf('camba', '14', 3))
-		self.pushButton_prisionero_cuadrada.clicked.connect(lambda: self.open_pdf('camba', '13', 1))
-		self.pushButton_tuerca_exagonal.clicked.connect(lambda: self.open_pdf('camba', '04', 1))
-		self.pushButton_tuerca_castillo.clicked.connect(
-			lambda: [
-				self.open_pdf('camba', '04', 5),
-				self.open_pdf('camba', '23', 1)
-			]
-		)
-		self.pushButton_tuerca_torneada.clicked.connect(lambda: self.open_pdf('camba', '23', 1))
-		self.pushButton_varilla_camba.clicked.connect(
-			lambda: [
-				self.open_pdf('camba', '11', 2),
-				self.open_pdf('camba', '17', 1)
-			]
-		)
-		self.pushButton_tornillo_metrico.clicked.connect(lambda: self.open_pdf('camba', '13', 2))
-		self.pushButton_tornillo_inox.clicked.connect(lambda: self.open_pdf('camba', '36', 8))
-
-		# Señales de pushbuttons de ROSARIO AGRO
-		self.pushButton_gummi.clicked.connect(lambda: self.open_pdf('rosario', 'GUMMI'))
-		self.pushButton_tupac.clicked.connect(lambda: self.open_pdf('rosario', 'Tupac'))
-		self.pushButton_cadena.clicked.connect(lambda: self.open_pdf('rosario', 'Cadenas_LinkBelt'))
-		self.pushButton_cruceta.clicked.connect(lambda: self.open_pdf('rosario', 'Crucetas_ETMA'))
-		self.pushButton_cuchilla.clicked.connect(lambda: self.open_pdf('rosario', 'Cuchillas_Agro'))
-		self.pushButton_forro.clicked.connect(lambda: self.open_pdf('rosario', 'FORRO_DE_EMBRAGUE'))
-		self.pushButton_polea.clicked.connect(lambda: self.open_pdf('rosario', 'PoleasHF'))
-		self.pushButton_cardan.clicked.connect(lambda: self.open_pdf('rosario', 'Repuestos_cardanicos'))
-		self.pushButton_rotula.clicked.connect(lambda: self.open_pdf('rosario', 'Rotulas'))
-		self.pushButton_varilla_rosario.clicked.connect(lambda: self.open_pdf('rosario', 'ROSCAS_ACME'))
-		self.pushButton_soporte.clicked.connect(lambda: self.open_pdf('rosario', 'Soportes_FKD'))
-		self.pushButton_termo.clicked.connect(lambda: self.open_pdf('rosario', 'Termoplasticos'))
-
-		# Señales de comboboxes
-		self.comboBox_most_used_hh.activated.connect(self.load_category)
-		self.comboBox_most_used_etma.activated.connect(self.load_category)
-		self.comboBox_most_used_camba.activated.connect(self.load_category)
-
-		# Señales de lineedits
-		self.lineEdit_search_hh.textEdited.connect(self.filter_products)
-		self.lineEdit_search_etma.textEdited.connect(self.filter_products)
-		self.lineEdit_search_camba.textEdited.connect(self.filter_products)
-
-		# Configuro headers de tablas
-		self.format_headers()
-
-		# Aplico tema claro por defecto
-		self.apply_theme('light')
-
-		# self.showMaximized() # Abro la ventana maximizada
-
-		self.initialize()
+	# Señal final que emite un diccionario con productos + reporte
+	finished = pyqtSignal(dict)
 
 
+	def update_progress(self, points_to_add, message=None):
+		"""Suma puntos al progreso total y actualiza la UI."""
 
-	############################################################################################
-	# PROCESAMIENTO INICIAL DE LISTAS
-	############################################################################################
+		self.current_progress += points_to_add
+		
+		# Evito pasarme de 100 por si hay algún redondeo raro
+		if self.current_progress > 100:
+			self.current_progress = 100
+			
+		if message:
+			self.message_changed.emit(message)
+		
+		# Emito el entero a la barra de progreso
+		self.progress_changed.emit(int(self.current_progress))
+
+		# print(f'{self.current_progress:.2f}', message if message else '')
+
 
 	# CÓDIGO PRINCIPAL
 	# ------------------------------------------------------------------------------------------
 
-	def initialize(self):
-		"""Método principal para gestionar la descarga y procesamiento de las listas."""
+	def run(self):
+		"""
+		Método principal ejecutado por el hilo secundario para gestionar la descarga
+		y procesamiento de las listas.
+		"""
 
 		# Inicializo variables
+		self.current_progress = 0
+		self.report = {}
+		self.all_data = {
+			'hh': {'products': [], 'date': ''},
+			'etma': {'products': [], 'date': ''},
+			'camba': {'products': [], 'date': ''},
+			'report': self.report
+		}
+
+		# Calculo puntajes de progreso
+		camba_files = 1 + len(CAMBA_SHEETS) # 1 excel + N pdfs
+		rosario_files = len(ROSARIO_URLS)
+		self.points_per_brand = 25
+		self.points_per_file_camba = self.points_per_brand / camba_files
+		self.points_per_file_rosario = self.points_per_brand / rosario_files
+
+		self.update_progress(0, 'Iniciando carga...')
+
 		suppliers = {
 			'tdc':   ('hh', 'etma'),
 			'camba': ('camba',)
 		}
-		self.all_products_hh = []
-		self.all_products_etma = []
-		self.all_products_camba = []
-		self.report = {}
-
-		# Vacio todo (por si se están recargando listas)
-		self.empty_everything()
 
 		for supplier, brands in suppliers.items():
-			
+
 			# Recupero la URL del proveedor
 			supplier_url = self.get_url_from_settings(supplier)
 			if not supplier_url:
@@ -139,6 +99,7 @@ class MainWindow(QMainWindow):
 
 			# Proceso los excel de cada marca
 			for brand in brands:
+				self.update_progress(0, f'Procesando {brand.upper()}...')
 				self.process_brand(soup, brand)
 
 			# Si el proveedor es CAMBA, busco los PDF de las hojas
@@ -146,15 +107,13 @@ class MainWindow(QMainWindow):
 				self.process_camba_pdfs(soup)
 
 		# Proceso los links fijos de ROSARIO
+		self.update_progress(0, 'Procesando ROSARIO AGRO...')
 		self.process_rosario_pdfs()
 
-		# Muestro el reporte
-		if self.report:
-			QMessageBox.information(
-				self,
-				'Información de la carga',
-				self.prepare_report()
-			)
+		self.update_progress(100, '¡Carga completada!')
+
+		# Devuelvo todos los datos recolectados al MainWindow
+		self.finished.emit(self.all_data)
 
 
 	# PROCESAMIENTO POR MARCA
@@ -163,10 +122,17 @@ class MainWindow(QMainWindow):
 	def process_brand(self, soup, brand):
 		"""Busca la URL de la lista excel en el soup, la descarga y la procesa."""
 
+		if brand == 'camba':
+			step_points = self.points_per_file_camba / 3
+		else:
+			step_points = self.points_per_brand / 3
+
 		# Busco link de la lista
 		list_url = self.get_list_url_from_soup(soup, brand)
+		self.update_progress(step_points)
 		if not list_url:
 			self.check_local_excel_list(brand, 'no_link')
+			self.update_progress(step_points * 2) # Como fui al fallback, sumo de golpe los 2 pasos restantes (descargar y procesar)
 			return
 
 		# Descargo la lista
@@ -178,8 +144,11 @@ class MainWindow(QMainWindow):
 				camba_last_date = self.resolve_camba_date(soup, excel_file_path)
 				SETTINGS.setValue('camba_last_date', camba_last_date)
 
+			self.update_progress(step_points)
+
 		except Exception:
 			self.check_local_excel_list(brand, 'no_download')
+			self.update_progress(step_points) # Solo sumo el paso restante (procesar)
 			return
 
 		# Proceso excel descargado
@@ -189,6 +158,8 @@ class MainWindow(QMainWindow):
 			self.report.setdefault(brand, {})['excel'] = {
 				'local_status': 'local_error'
 			}
+
+		self.update_progress(step_points)
 
 
 	def process_camba_pdfs(self, soup):
@@ -207,6 +178,7 @@ class MainWindow(QMainWindow):
 			)
 			if not a_elem:
 				self.check_local_pdf_list('camba', sheet_num, 'no_link')
+				self.update_progress(self.points_per_file_camba) # Sumo antes de saltar
 				continue
 
 			# Obtengo la ruta completa
@@ -216,6 +188,7 @@ class MainWindow(QMainWindow):
 
 			# Si ya existe con este nombre exacto, lo salteamos
 			if pdf_file_path.exists():
+				self.update_progress(self.points_per_file_camba) # Sumo antes de saltar
 				continue
 
 			# Descargo el PDF
@@ -232,6 +205,9 @@ class MainWindow(QMainWindow):
 					f.write(response.content)
 			except Exception:
 				self.check_local_pdf_list('camba', sheet_num, 'no_download')
+
+			# Sumo al final si todo el proceso normal terminó
+			self.update_progress(self.points_per_file_camba)
 
 
 	def process_rosario_pdfs(self):
@@ -254,6 +230,8 @@ class MainWindow(QMainWindow):
 					f.write(response.content)
 			except Exception:
 				self.check_local_pdf_list('rosario', pdf_file_path.stem, 'no_download') # paso solo nombre del PDF
+			
+			self.update_progress(self.points_per_file_rosario)
 
 
 	# FALLBACKS (hubo error y se deben buscar listas locales descargadas previamente)
@@ -267,13 +245,19 @@ class MainWindow(QMainWindow):
 		Llama al fallback de marca por cada marca del proveedor. Además, 
 		si es CAMBA, chequea las hojas PDF locales.
 		"""
+
 		for brand in brands:
+			self.update_progress(0, f'Procesando {brand.upper()}...')
 			self.check_local_excel_list(brand, reason)
 
 			# Si es CAMBA, compruebo PDFs locales
 			if brand == 'camba':
+				self.update_progress(self.points_per_file_camba) # excel recién procesado
 				for sheet_num in CAMBA_SHEETS:
 					self.check_local_pdf_list('camba', sheet_num, reason)
+					self.update_progress(self.points_per_file_camba)
+			else:
+				self.update_progress(self.points_per_brand)
 
 
 	def check_local_excel_list(self, brand, reason):
@@ -473,29 +457,10 @@ class MainWindow(QMainWindow):
 
 
 	def process_excel(self, excel_file_path, brand):
-		"""Lee el excel y carga los productos en la interfaz."""
-
-		# Mapeo de marcas a su correspondiente widget en la UI
-		bmap = {
-			'hh': {
-				'label': self.label_validity_date_hh,
-				'table': self.tableWidget_search_hh,
-				'combo': self.comboBox_most_used_hh,
-				'most': MOST_USED_PRODUCTS_HH
-			},
-			'etma': {
-				'label': self.label_validity_date_etma,
-				'table': self.tableWidget_search_etma,
-				'combo': self.comboBox_most_used_etma,
-				'most': MOST_USED_PRODUCTS_ETMA
-			},
-			'camba': {
-				'label': self.label_validity_date_camba,
-				'table': self.tableWidget_search_camba,
-				'combo': self.comboBox_most_used_camba,
-				'most': MOST_USED_PRODUCTS_CAMBA
-			}
-		}
+		"""
+		Lee el excel, extrae la fecha de validez y los productos, y guarda todo 
+		en all_data.
+		"""
 
 		# Creo workbook y extraigo la hoja de productos
 		wb = openpyxl.load_workbook(excel_file_path)
@@ -507,23 +472,15 @@ class MainWindow(QMainWindow):
 		# Busco número de fila de primer producto
 		first_row = self.search_first_row(sheet, header_cols['price_col'])
 
-		# Muestro fecha de validez de precios
-		self.show_validity_date(sheet, bmap[brand]['label'])
+		# Extraigo la fecha de validez de precios
+		validity_date = self.extract_validity_date(brand, sheet)
 
-		# Paso los productos a un diccionario
+		# Extraigo todos los productos en una lista de diccionarios
 		products = self.obtain_products(sheet, first_row, header_cols, brand)
-		if brand == 'hh':
-			self.all_products_hh = products
-		elif brand == 'etma':
-			self.all_products_etma = products
-		elif brand == 'camba':
-			self.all_products_camba = products
 
-		# Listo todos los productos
-		self.list_products(products, bmap[brand]['table'])
-
-		# Listo los más usados
-		self.load_more_used(bmap[brand]['combo'], products, bmap[brand]['most'])
+		# Guardo los datos recolectados en el diccionario general
+		self.all_data[brand]['products'] = products
+		self.all_data[brand]['date'] = validity_date
 
 
 	def search_header_cols(self, sheet, brand):
@@ -600,6 +557,32 @@ class MainWindow(QMainWindow):
 					continue
 
 
+	def extract_validity_date(self, brand, sheet):
+		"""Busca la fecha de validez de precios en la hoja."""
+
+		# Para CAMBA se busca en la configuración guardada
+		if brand == 'camba':
+			stored_date = SETTINGS.value('camba_last_date', '', type=str)
+			if stored_date:
+				return f'📆 Precios válidos para el: {stored_date}'
+			else:
+				return '📆 Fecha no disponible'
+
+		# Para HH o ETMA se busca en las primeras celdas
+		for row in sheet['A1':'E20']:
+			for cell in row:
+				# Evito trabajo innecesario (no analizo celdas vacías)
+				if not cell.value:
+					continue
+
+				# Busco la fecha en la celda
+				value = str(cell.value)
+				if re.search(r'\d{1,2}/\d{1,2}/\d{2,4}', value) and ('valid' in value or 'válid' in value):
+					return '📆 ' + value.replace('validos', 'válidos')
+
+		return '📆 Fecha no encontrada'
+
+
 	def obtain_products(self, sheet, first_row, header_cols, brand):
 		"""Crea lista de diccionarios de productos para filtrar."""
 
@@ -634,6 +617,171 @@ class MainWindow(QMainWindow):
 			if sheet[col + str(row)].value is None:
 				return False
 		return True
+
+
+
+class MainWindow(QMainWindow):
+	def __init__(self):
+		super().__init__()
+
+		# Cargo la UI
+		uic.loadUi('ui/app.ui', self)
+
+		# Señales de pushbuttons inferiores
+		self.pushButton_theme.clicked.connect(self.change_theme)
+		self.pushButton_config.clicked.connect(self.open_config)
+		self.pushButton_about.clicked.connect(self.open_about)
+
+		# Señales de pushbuttons de BULONERA CAMBA
+		self.pushButton_alemite.clicked.connect(lambda: self.open_pdf('camba', '22', 2))
+		self.pushButton_seeger.clicked.connect(lambda: self.open_pdf('camba', '35', 2))
+		self.pushButton_arandela_grower.clicked.connect(lambda: self.open_pdf('camba', '10', 4))
+		self.pushButton_arandela_plana.clicked.connect(lambda: self.open_pdf('camba', '16', 1))
+		self.pushButton_bulon_unc.clicked.connect(lambda: self.open_pdf('camba', '02', 1))
+		self.pushButton_bulon_unf.clicked.connect(lambda: self.open_pdf('camba', '07', 1))
+		self.pushButton_chaveta_partida.clicked.connect(lambda: self.open_pdf('camba', '19', 1))
+		self.pushButton_espina_elastica.clicked.connect(lambda: self.open_pdf('camba', '35', 1))
+		self.pushButton_prisionero_cilindrica.clicked.connect(lambda: self.open_pdf('camba', '14', 2))
+		self.pushButton_prisionero_sin.clicked.connect(lambda: self.open_pdf('camba', '14', 3))
+		self.pushButton_prisionero_cuadrada.clicked.connect(lambda: self.open_pdf('camba', '13', 1))
+		self.pushButton_tuerca_exagonal.clicked.connect(lambda: self.open_pdf('camba', '04', 1))
+		self.pushButton_tuerca_castillo.clicked.connect(
+			lambda: [
+				self.open_pdf('camba', '04', 5),
+				self.open_pdf('camba', '23', 1)
+			]
+		)
+		self.pushButton_tuerca_torneada.clicked.connect(lambda: self.open_pdf('camba', '23', 1))
+		self.pushButton_varilla_camba.clicked.connect(
+			lambda: [
+				self.open_pdf('camba', '11', 2),
+				self.open_pdf('camba', '17', 1)
+			]
+		)
+		self.pushButton_tornillo_metrico.clicked.connect(lambda: self.open_pdf('camba', '13', 2))
+		self.pushButton_tornillo_inox.clicked.connect(lambda: self.open_pdf('camba', '36', 8))
+
+		# Señales de pushbuttons de ROSARIO AGRO
+		self.pushButton_gummi.clicked.connect(lambda: self.open_pdf('rosario', 'GUMMI'))
+		self.pushButton_tupac.clicked.connect(lambda: self.open_pdf('rosario', 'Tupac'))
+		self.pushButton_cadena.clicked.connect(lambda: self.open_pdf('rosario', 'Cadenas_LinkBelt'))
+		self.pushButton_cruceta.clicked.connect(lambda: self.open_pdf('rosario', 'Crucetas_ETMA'))
+		self.pushButton_cuchilla.clicked.connect(lambda: self.open_pdf('rosario', 'Cuchillas_Agro'))
+		self.pushButton_forro.clicked.connect(lambda: self.open_pdf('rosario', 'FORRO_DE_EMBRAGUE'))
+		self.pushButton_polea.clicked.connect(lambda: self.open_pdf('rosario', 'PoleasHF'))
+		self.pushButton_cardan.clicked.connect(lambda: self.open_pdf('rosario', 'Repuestos_cardanicos'))
+		self.pushButton_rotula.clicked.connect(lambda: self.open_pdf('rosario', 'Rotulas'))
+		self.pushButton_varilla_rosario.clicked.connect(lambda: self.open_pdf('rosario', 'ROSCAS_ACME'))
+		self.pushButton_soporte.clicked.connect(lambda: self.open_pdf('rosario', 'Soportes_FKD'))
+		self.pushButton_termo.clicked.connect(lambda: self.open_pdf('rosario', 'Termoplasticos'))
+
+		# Señales de comboboxes
+		self.comboBox_most_used_hh.activated.connect(self.load_category)
+		self.comboBox_most_used_etma.activated.connect(self.load_category)
+		self.comboBox_most_used_camba.activated.connect(self.load_category)
+
+		# Señales de lineedits
+		self.lineEdit_search_hh.textEdited.connect(self.filter_products)
+		self.lineEdit_search_etma.textEdited.connect(self.filter_products)
+		self.lineEdit_search_camba.textEdited.connect(self.filter_products)
+
+		# Configuro headers de tablas
+		self.format_headers()
+
+		# Aplico tema claro por defecto
+		self.apply_theme('light')
+
+		self.showMaximized() # Abro la ventana maximizada
+
+		self.initialize()
+
+
+	def initialize(self):
+		"""Inicia el proceso en segundo plano con una barra de progreso."""
+
+		# Vacio todo por si es una recarga
+		self.empty_everything()
+
+		# Instancio el dialog personalizado
+		self.progress_dialog = ProgressDialog(self)
+		
+		# Configuro el hilo y el worker
+		self.thread = QThread()
+		self.worker = Worker()
+		self.worker.moveToThread(self.thread)
+
+		# Conecto las señales del Worker a los widgets del dialog
+		self.worker.message_changed.connect(self.progress_dialog.label.setText)
+		self.worker.progress_changed.connect(self.progress_dialog.progressBar.setValue)
+		
+		# Conecto señales de ciclo de vida e inicio
+		self.thread.started.connect(self.worker.run)
+		self.worker.finished.connect(self.on_worker_finished) # acá recibo los datos
+		
+		# Limpieza de memoria al terminar
+		self.worker.finished.connect(self.thread.quit)
+		self.worker.finished.connect(self.worker.deleteLater)
+		self.thread.finished.connect(self.thread.deleteLater)
+
+		# Muestro el diálogo de forma modal (bloquea la ventana principal) e inicio el hilo
+		self.thread.start()
+		self.progress_dialog.exec()
+
+
+	def on_worker_finished(self, final_data):
+		"""Recibe los datos cuando el Worker termina."""
+
+		# Cierro el dialog personalizado
+		self.progress_dialog.accept()
+
+		# Asigno los datos a la ventana principal
+		self.all_products_hh = final_data['hh']['products']
+		self.all_products_etma = final_data['etma']['products']
+		self.all_products_camba = final_data['camba']['products']
+		self.report = final_data['report']
+
+		# Mapeo de marcas a sus correspondientes elementos
+		bmap = {
+			'hh': {
+				'products': self.all_products_hh,
+				'label': self.label_validity_date_hh,
+				'table': self.tableWidget_search_hh,
+				'combo': self.comboBox_most_used_hh,
+				'most': MOST_USED_PRODUCTS_HH
+			},
+			'etma': {
+				'products': self.all_products_etma,
+				'label': self.label_validity_date_etma,
+				'table': self.tableWidget_search_etma,
+				'combo': self.comboBox_most_used_etma,
+				'most': MOST_USED_PRODUCTS_ETMA
+			},
+			'camba': {
+				'products': self.all_products_camba,
+				'label': self.label_validity_date_camba,
+				'table': self.tableWidget_search_camba,
+				'combo': self.comboBox_most_used_camba,
+				'most': MOST_USED_PRODUCTS_CAMBA
+			}
+		}
+
+		for brand, elems in bmap.items():
+			# Muestro fecha de validez de precios
+			elems['label'].setText(final_data[brand]['date'])
+
+			# Listo todos los productos
+			self.list_products(elems['products'], elems['table'])
+
+			# Listo los más usados
+			self.load_more_used(elems['combo'], elems['products'], elems['most'])
+
+		# Muestro el reporte si existe
+		if self.report:
+			QMessageBox.information(
+				self,
+				'Información de la carga',
+				self.prepare_report()
+			)
 
 
 	def prepare_report(self):
@@ -749,7 +897,7 @@ class MainWindow(QMainWindow):
 
 
 	############################################################################################
-	# MÉTODOS QUE MODIFICAN LA INTERFAZ O SON DISPARADOS POR USUARIO
+	# MÉTODOS QUE TOCAN LOS WIDGETS O SON DISPARADOS POR ACCIONES DEL USUARIO
 	############################################################################################
 
 
@@ -795,34 +943,6 @@ class MainWindow(QMainWindow):
 			table.setColumnWidth(1, 400) # fijo
 			table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch) # ocupa el resto
 			table.setColumnWidth(3, 160) # fijo
-
-
-	def show_validity_date(self, sheet, label):
-		"""Muestra la fecha de validez de precios presente en la hoja."""
-
-		# CAMBA
-		if label is self.label_validity_date_camba:
-			stored_date = SETTINGS.value('camba_last_date', '', type=str)
-			if stored_date:
-				label.setText(f'📆 Precios válidos para el: {stored_date}')
-			else:
-				label.setText('📆 Fecha no disponible')
-			return
-
-		# HH, ETMA
-		for row in sheet['A1':'E20']:
-			for cell in row:
-				# Evito trabajo innecesario (no analizo celdas vacías)
-				if not cell.value:
-					continue
-
-				# Busco la fecha en la celda
-				value = str(cell.value)
-				if re.search(r'\d{1,2}/\d{1,2}/\d{2,4}', value) and ('valid' in value or 'válid' in value):
-					label.setText('📆 ' + value.replace('validos', 'válidos'))
-					return
-
-		label.setText('📆 Fecha no encontrada')
 
 
 	def load_more_used(self, combo_box, all_products, most_used_products):
@@ -1143,6 +1263,18 @@ class AboutDialog(QDialog):
 
 		# Cargo la UI
 		uic.loadUi('ui/about.ui', self)
+
+
+
+class ProgressDialog(QDialog):
+	def __init__(self, parent=None):
+		super().__init__(parent)
+
+		# Cargo la UI
+		uic.loadUi('ui/progress.ui', self)
+
+		# Quito el botón de cerrar de la ventana para que el usuario no lo interrumpa
+		self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
 
 
 
