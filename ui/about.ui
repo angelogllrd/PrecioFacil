@@ -121,7 +121,7 @@ angelogallardi@gmail.com</string>
           <item row="1" column="0" colspan="2">
            <widget class="QLabel" name="label_4">
             <property name="text">
-             <string>Buscador de listas de precios de Tienda del Cardan, Bulonera Camba y Rosario Agroindustrial con actualización automática desde internet.</string>
+             <string>Buscador de listas de precios de Tienda del Cardan, Bulonera Camba y Rosario Agro Industrial con actualización automática desde internet.</string>
             </property>
             <property name="wordWrap">
              <bool>true</bool>

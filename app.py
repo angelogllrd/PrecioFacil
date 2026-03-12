@@ -17,6 +17,7 @@ import winreg
 import subprocess
 from PyQt6 import uic
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from utils import SETTINGS, CAMBA_SHEETS, CAMBA_CATEGORIES, ROSARIO_URLS, MOST_USED_PRODUCTS_HH, MOST_USED_PRODUCTS_ETMA, MOST_USED_PRODUCTS_CAMBA 
 
 
@@ -28,6 +29,16 @@ class Worker(QObject):
 
 	# Señal final que emite un diccionario con productos + reporte
 	finished = pyqtSignal(dict)
+
+
+	def __init__(self):
+		super().__init__()
+
+		# self.current_progress = 0
+		# self.progress_lock = threading.Lock()
+
+		# Sesión persistente (acelera mucho, evita abrir una conexión nueva cada vez)
+		self.session = requests.Session()
 
 
 	def update_progress(self, points_to_add, message=None):
@@ -163,75 +174,101 @@ class Worker(QObject):
 
 
 	def process_camba_pdfs(self, soup):
-		"""Procesa los PDF de las hojas de Bulonera Camba buscando en el soup."""
+		"""Inicia la descarga paralela de los PDFs de CAMBA encontrados en el soup."""
 
 		# Construyo ruta de la carpeta destino
 		base_path = Path(os.getenv('APPDATA')) / 'PrecioFacil' / 'listas' / 'camba'
 		base_path.mkdir(parents=True, exist_ok=True)
 
-		for sheet_num in CAMBA_SHEETS:
-			# Busco el link de la hoja
-			a_elem = soup.find(
-				'a',
-				href=True,
-				string=lambda s: s and f'Hoja {sheet_num}' in s
-			)
-			if not a_elem:
-				self.check_local_pdf_list('camba', sheet_num, 'no_link')
-				self.update_progress(self.points_per_file_camba) # Sumo antes de saltar
-				continue
+		with ThreadPoolExecutor(max_workers=5) as executor:
+			for sheet_num in CAMBA_SHEETS:
+				executor.submit(
+					self.download_camba_pdf,
+					sheet_num,
+					soup,
+					base_path
+				)
 
-			# Obtengo la ruta completa
-			pdf_url = a_elem['href']
-			pdf_original_name = pdf_url.split('=')[-1] + '.pdf'
-			pdf_file_path = base_path / pdf_original_name
 
-			# Si ya existe con este nombre exacto, lo salteamos
-			if pdf_file_path.exists():
-				self.update_progress(self.points_per_file_camba) # Sumo antes de saltar
-				continue
+	def download_camba_pdf(self, sheet_num, soup, base_path):
+		"""Descarga un PDF específico de CAMBA según el número de hoja."""
 
-			# Descargo el PDF
-			try:
-				response = requests.get(pdf_url, timeout=10)
-				response.raise_for_status()
+		# Busco el link de la hoja
+		a_elem = soup.find(
+			'a',
+			href=True,
+			string=lambda s: s and f'Hoja {sheet_num}' in s
+		)
+		if not a_elem:
+			self.check_local_pdf_list('camba', sheet_num, 'no_link')
+			self.update_progress(self.points_per_file_camba) # Sumo antes de retornar
+			return
 
-				# Borro versiones viejas del mismo número de hoja
-				for old_pdf in base_path.glob(f'Hoja{sheet_num}*.pdf'):
-					old_pdf.unlink()
+		# Obtengo la ruta completa
+		pdf_url = a_elem['href']
+		pdf_original_name = pdf_url.split('=')[-1] + '.pdf'
+		pdf_file_path = base_path / pdf_original_name
 
-				# Guardo el archivo descargado
-				with open(pdf_file_path, 'wb') as f:
-					f.write(response.content)
-			except Exception:
-				self.check_local_pdf_list('camba', sheet_num, 'no_download')
+		# Si ya existe con este nombre exacto, lo salteamos
+		if pdf_file_path.exists():
+			self.update_progress(self.points_per_file_camba) # Sumo antes de retornar
+			return
 
-			# Sumo al final si todo el proceso normal terminó
-			self.update_progress(self.points_per_file_camba)
+		# Descargo el PDF
+		try:
+			response = self.session.get(pdf_url, timeout=10)
+			response.raise_for_status()
+
+			# Borro versiones viejas del mismo número de hoja
+			for old_pdf in base_path.glob(f'Hoja{sheet_num}*.pdf'):
+				old_pdf.unlink()
+
+			# Guardo el archivo descargado
+			with open(pdf_file_path, 'wb') as f:
+				f.write(response.content)
+
+		except Exception:
+			self.check_local_pdf_list('camba', sheet_num, 'no_download')
+
+		# Sumo al final si todo el proceso normal terminó
+		self.update_progress(self.points_per_file_camba)
 
 
 	def process_rosario_pdfs(self):
-		"""Descarga los PDF de ROSARIO AGRO desde links fijos, sobreescribiendo."""
+		"""Inicia la descarga paralela de los PDFs de ROSARIO AGRO."""
 
 		base_path = Path(os.getenv('APPDATA')) / 'PrecioFacil' / 'listas' / 'rosario'
 		base_path.mkdir(parents=True, exist_ok=True)
 
-		for pdf_url in ROSARIO_URLS:
-			# Obtengo la ruta completa
-			pdf_original_name = pdf_url.split('=')[-1]
-			pdf_file_path = base_path / pdf_original_name
+		with ThreadPoolExecutor(max_workers=5) as executor:
+			for pdf_url in ROSARIO_URLS:
+				executor.submit(
+					self.download_rosario_pdf,
+					pdf_url,
+					base_path
+				)
 
-			# Descargo el PDF
-			try:
-				response = requests.get(pdf_url, timeout=10)
-				response.raise_for_status()
 
-				with open(pdf_file_path, 'wb') as f:
-					f.write(response.content)
-			except Exception:
-				self.check_local_pdf_list('rosario', pdf_file_path.stem, 'no_download') # paso solo nombre del PDF
-			
-			self.update_progress(self.points_per_file_rosario)
+	def download_rosario_pdf(self, pdf_url, base_path):
+		"""Descarga un PDF de ROSARIO AGRO desde la URL indicada, sobreescribiendo."""
+
+		# Obtengo la ruta completa
+		pdf_original_name = pdf_url.split('=')[-1]
+		pdf_file_path = base_path / pdf_original_name
+
+		# Descargo el PDF
+		try:
+			response = self.session.get(pdf_url, timeout=10)
+			response.raise_for_status()
+
+			with open(pdf_file_path, 'wb') as f:
+				f.write(response.content)
+
+			# print(f'Descargado PDF: {pdf_file_path}')
+		except Exception:
+			self.check_local_pdf_list('rosario', pdf_file_path.stem, 'no_download') # paso solo nombre del PDF
+		
+		self.update_progress(self.points_per_file_rosario)
 
 
 	# FALLBACKS (hubo error y se deben buscar listas locales descargadas previamente)
