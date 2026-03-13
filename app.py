@@ -1,24 +1,38 @@
+# -----------------------
+# Librerías estándar
+# -----------------------
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import winreg
+import zipfile
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from io import BytesIO
+from pathlib import Path
+from urllib.parse import unquote, urlparse
+
+# -----------------------
+# Librerías de terceros
+# -----------------------
+import bs4
 import openpyxl
 import requests
-import bs4
-import tempfile
-from pathlib import Path
-import zipfile
-from io import BytesIO
-import os
-from urllib.parse import urlparse, unquote
-import re
-from datetime import datetime
 from openpyxl.utils import get_column_letter
-from PyQt6.QtWidgets import QMainWindow, QApplication, QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QMessageBox
-from PyQt6.QtCore import Qt, QUrl, QObject, QThread, pyqtSignal
-from PyQt6.QtGui import QIcon, QFont, QDesktopServices
-import winreg
-import subprocess
 from PyQt6 import uic
-import sys
-from concurrent.futures import ThreadPoolExecutor
-from utils import SETTINGS, CAMBA_SHEETS, CAMBA_CATEGORIES, ROSARIO_URLS, MOST_USED_PRODUCTS_HH, MOST_USED_PRODUCTS_ETMA, MOST_USED_PRODUCTS_CAMBA 
+from PyQt6.QtCore import QObject, Qt, QThread, QUrl, pyqtSignal
+from PyQt6.QtGui import QDesktopServices, QFont, QIcon
+from PyQt6.QtWidgets import (QApplication, QDialog, QHeaderView, QMainWindow,
+                             QMessageBox, QTableWidget, QTableWidgetItem)
+
+# -----------------------
+# Módulos del proyecto
+# -----------------------
+from utils import (CAMBA_CATEGORIES, CAMBA_SHEETS, MOST_USED_PRODUCTS_CAMBA,
+                   MOST_USED_PRODUCTS_ETMA, MOST_USED_PRODUCTS_HH,
+                   ROSARIO_URLS, SETTINGS)
 
 
 
@@ -33,10 +47,6 @@ class Worker(QObject):
 
 	def __init__(self):
 		super().__init__()
-
-		# self.current_progress = 0
-		# self.progress_lock = threading.Lock()
-
 		# Sesión persistente (acelera mucho, evita abrir una conexión nueva cada vez)
 		self.session = requests.Session()
 
