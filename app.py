@@ -1,3 +1,23 @@
+###############################################################################################
+#                                                                                             #
+#    /$$$$$$$                               /$$           /$$$$$$$$                 /$$ /$$   #
+#   | $$__  $$                             |__/          | $$_____/                |__/| $$   #
+#   | $$  \ $$ /$$$$$$   /$$$$$$   /$$$$$$$ /$$  /$$$$$$ | $$    /$$$$$$   /$$$$$$$ /$$| $$   #
+#   | $$$$$$$//$$__  $$ /$$__  $$ /$$_____/| $$ /$$__  $$| $$$$$|____  $$ /$$_____/| $$| $$   #
+#   | $$____/| $$  \__/| $$$$$$$$| $$      | $$| $$  \ $$| $$__/ /$$$$$$$| $$      | $$| $$   #
+#   | $$     | $$      | $$_____/| $$      | $$| $$  | $$| $$   /$$__  $$| $$      | $$| $$   #
+#   | $$     | $$      |  $$$$$$$|  $$$$$$$| $$|  $$$$$$/| $$  |  $$$$$$$|  $$$$$$$| $$| $$   #
+#   |__/     |__/       \_______/ \_______/|__/ \______/ |__/   \_______/ \_______/|__/|__/   #
+#                                                                                             #
+#            Buscador de listas de precios de Tienda del Cardan, Bulonera Camba y             #
+#             Rosario Agro Industrial con actualización automática desde internet             #
+#                                                                                             #
+#                      Autor: Angelo Gallardi (angelogallardi@gmail.com)                      #
+#                                                                                             #
+###############################################################################################
+
+
+
 # -----------------------
 # Librerías estándar
 # -----------------------
@@ -22,7 +42,8 @@ import openpyxl
 import requests
 from openpyxl.utils import get_column_letter
 from PyQt6 import uic
-from PyQt6.QtCore import QObject, Qt, QThread, QUrl, pyqtSignal
+from PyQt6.QtCore import (QLibraryInfo, QObject, Qt, QThread, QTimer,
+                          QTranslator, QUrl, pyqtSignal)
 from PyQt6.QtGui import QDesktopServices, QFont, QIcon
 from PyQt6.QtWidgets import (QApplication, QDialog, QHeaderView, QMainWindow,
                              QMessageBox, QTableWidget, QTableWidgetItem)
@@ -30,19 +51,82 @@ from PyQt6.QtWidgets import (QApplication, QDialog, QHeaderView, QMainWindow,
 # -----------------------
 # Módulos del proyecto
 # -----------------------
-from utils import (CAMBA_CATEGORIES, CAMBA_SHEETS, MOST_USED_PRODUCTS_CAMBA,
-                   MOST_USED_PRODUCTS_ETMA, MOST_USED_PRODUCTS_HH,
-                   ROSARIO_URLS, SETTINGS)
+from utils import (CAMBA_CATEGORIES, CAMBA_SHEETS, CURRENT_VERSION,
+                   MOST_USED_PRODUCTS_CAMBA, MOST_USED_PRODUCTS_ETMA,
+                   MOST_USED_PRODUCTS_HH, REPO_NAME, REPO_OWNER, ROSARIO_URLS,
+                   SETTINGS)
 
 
 
-class Worker(QObject):
-	# Señales para actualizar el ProgressDialog
+class UpdateDownloader(QObject):
 	progress_changed = pyqtSignal(int)
 	message_changed = pyqtSignal(str)
+	finished = pyqtSignal(str)
 
-	# Señal final que emite un diccionario con productos + reporte
-	finished = pyqtSignal(dict)
+
+	def __init__(self, download_url):
+		super().__init__()
+		self.download_url = download_url
+		self.is_cancelled = False
+
+
+	def cancel(self):
+		"""Activa la bandera para frenar la descarga."""
+		self.is_cancelled = True
+
+
+	def run(self):
+		installer_path = Path(os.getenv('TEMP')) / 'PrecioFacil_Update.exe'
+
+		try:
+			self.message_changed.emit('Conectando con el servidor...')
+			response = requests.get(self.download_url, stream=True, timeout=10)
+			response.raise_for_status()
+
+			# Obtengo el tamaño total del archivo para calcular el porcentaje
+			total_size = int(response.headers.get('content-length', 0))
+			downloaded_size = 0
+
+			self.message_changed.emit('Descargando actualización...')
+			with open(installer_path, 'wb') as f:
+				for chunk in response.iter_content(chunk_size=8192):
+					if self.is_cancelled:
+						break # Corta el bucle si el usuario canceló
+					if chunk:
+						f.write(chunk)
+						downloaded_size += len(chunk)
+						if total_size > 0:
+							# Calculo el porcentaje y emito la señal
+							percentage = int((downloaded_size / total_size) * 100)
+							self.progress_changed.emit(percentage)
+
+			# Si se canceló, limpio y salgo
+			if self.is_cancelled:
+				if installer_path.exists():
+					installer_path.unlink() # Borro la basura
+				self.finished.emit('cancelled') # Aviso que fue cancelado
+				return
+
+			# Si llegué acá, la descarga terminó bien
+			self.message_changed.emit('Iniciando instalador...')
+			subprocess.Popen([installer_path, '/SILENT']) # Instalación silenciosa (solo barra de progreso)
+			self.finished.emit('success') # Aviso que fue exitoso
+
+		except Exception as e:
+			# Si hay error (ej. se corta internet), limpio y aviso
+			if installer_path.exists():
+				try:
+					installer_path.unlink()
+				except OSError:
+					pass # Si Windows lo tiene bloqueado por alguna razón, lo ignoramos
+
+			self.finished.emit(f'error|{str(e)}') # Aviso que hubo error
+
+
+class DataProcessor(QObject):
+	progress_changed = pyqtSignal(int)
+	message_changed = pyqtSignal(str)
+	finished = pyqtSignal(dict) # Emite un diccionario con productos + reporte
 
 
 	def __init__(self):
@@ -175,7 +259,7 @@ class Worker(QObject):
 		# Proceso excel descargado
 		try:
 			self.process_excel(excel_file_path, brand)
-		except Exception as e:
+		except Exception:
 			self.report.setdefault(brand, {})['excel'] = {
 				'local_status': 'local_error'
 			}
@@ -187,7 +271,7 @@ class Worker(QObject):
 		"""Inicia la descarga paralela de los PDFs de CAMBA encontrados en el soup."""
 
 		# Construyo ruta de la carpeta destino
-		base_path = Path(os.getenv('APPDATA')) / 'PrecioFacil' / 'listas' / 'camba'
+		base_path = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'listas' / 'camba'
 		base_path.mkdir(parents=True, exist_ok=True)
 
 		with ThreadPoolExecutor(max_workers=5) as executor:
@@ -247,7 +331,7 @@ class Worker(QObject):
 	def process_rosario_pdfs(self):
 		"""Inicia la descarga paralela de los PDFs de ROSARIO AGRO."""
 
-		base_path = Path(os.getenv('APPDATA')) / 'PrecioFacil' / 'listas' / 'rosario'
+		base_path = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'listas' / 'rosario'
 		base_path.mkdir(parents=True, exist_ok=True)
 
 		with ThreadPoolExecutor(max_workers=5) as executor:
@@ -274,7 +358,6 @@ class Worker(QObject):
 			with open(pdf_file_path, 'wb') as f:
 				f.write(response.content)
 
-			# print(f'Descargado PDF: {pdf_file_path}')
 		except Exception:
 			self.check_local_pdf_list('rosario', pdf_file_path.stem, 'no_download') # paso solo nombre del PDF
 		
@@ -315,7 +398,7 @@ class Worker(QObject):
 		Comprueba si existe un excel local previamente descargado y lo procesa.
 		"""
 
-		base_path = Path(os.getenv('APPDATA')) / 'PrecioFacil' / 'listas' / brand
+		base_path = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'listas' / brand
 		excel_file_path = None
 
 		if base_path.exists():
@@ -345,7 +428,7 @@ class Worker(QObject):
 		* Para ROSARIO: identifier es el nombre del archivo (ej: 'Cuchillas_Jardin')
 		"""
 
-		base_path = Path(os.getenv('APPDATA')) / 'PrecioFacil' / 'listas' / brand
+		base_path = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'listas' / brand
 		has_local = False
 
 		if base_path.exists():
@@ -422,7 +505,7 @@ class Worker(QObject):
 		"""Descarga el excel en la carpeta correspondiente."""
 
 		# Construyo ruta de la carpeta destino
-		base_path = Path(os.getenv('APPDATA')) / 'PrecioFacil' / 'listas' / brand
+		base_path = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'listas' / brand
 		base_path.mkdir(parents=True, exist_ok=True)
 
 		# Descargo el archivo
@@ -737,46 +820,148 @@ class MainWindow(QMainWindow):
 		self.apply_theme('light') # Tema claro por defecto
 		self.showMaximized() # Ventana maximizada
 
-		self.initialize()
+		# Primero compruebo si hay actualizaciones
+		# Si NO hay, o el usuario cancela, inicio el flujo normal
+		QTimer.singleShot(1, lambda: self.start_data_processing() if not self.check_updates() else None) # Evito problemas de centrado
 
 
-	def initialize(self):
-		"""Inicia el proceso en segundo plano con una barra de progreso."""
+	def check_updates(self):
+		"""
+		Comprueba en GitHub si hay una versión nueva.
+		* Devuelve True si se inició el proceso de actualización.
+		* Devuelve False si no hay actualización o si el usuario dijo que NO.
+		"""
+
+		url = f'https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/latest'
+
+		try:
+			# Consulto el último release en GitHub
+			response = requests.get(url, timeout=3) # 3 seg para que falle rápido si no hay internet
+			response.raise_for_status()
+			data = response.json()
+			latest_version = data['tag_name'].lstrip('v')
+
+			# Comparo versiones
+			if latest_version != CURRENT_VERSION:
+				# Pregunto al usuario
+				reply = QMessageBox.question(
+					self,
+					'Actualización disponible',
+					f'Hay una nueva versión de PrecioFacil ({latest_version}).\n¿Querés actualizar ahora?',
+					QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+				)
+
+				if reply == QMessageBox.StandardButton.Yes:
+					download_url = data['assets'][0]['browser_download_url'] # No necesito iterar (un solo asset siempre, el .exe)
+					self.start_update_download(download_url)
+					return True # Avisa para no hacer start_data_processing()
+
+		except Exception:
+			# Si falla, simplemente ignoramos y la app arranca normal
+			pass 
+
+		return False
+
+
+	def start_update_download(self, download_url):
+		"""Inicia la descarga de la actualización en un hilo secundario."""
+
+		# Creo el dialog de progreso
+		self.downloader_dialog = ProgressDialog('Progreso de la descarga', True, self)
+
+		# Configuro el hilo y el worker
+		self.downloader_thread = QThread()
+		self.downloader_worker = UpdateDownloader(download_url)
+		self.downloader_worker.moveToThread(self.downloader_thread)
+		
+		# Conecto las señales del worker al dialog
+		self.downloader_worker.message_changed.connect(self.downloader_dialog.label.setText)
+		self.downloader_worker.progress_changed.connect(self.downloader_dialog.progressBar.setValue)
+
+		# Conecto señal de cancelación de descarga
+		# Qt.ConnectionType.DirectConnection obliga a que el método cancel() se ejecute
+		# en el momento exacto en que se hace clic
+		self.downloader_dialog.rejected.connect(self.downloader_worker.cancel, Qt.ConnectionType.DirectConnection)
+
+		# Conecto señales de ciclo de vida e inicio
+		self.downloader_thread.started.connect(self.downloader_worker.run)
+		self.downloader_worker.finished.connect(self.on_update_finished)
+
+		# Limpieza de memoria al terminar
+		self.downloader_worker.finished.connect(self.downloader_thread.quit)
+		self.downloader_worker.finished.connect(self.downloader_worker.deleteLater)
+		self.downloader_thread.finished.connect(self.downloader_thread.deleteLater)
+
+		# Inicio el hilo y muestro el dialog de forma modal
+		self.downloader_thread.start()
+		self.downloader_dialog.exec()
+
+
+	def on_update_finished(self, status):
+		"""Procesa el resultado de la descarga y continúa el flujo."""
+		
+		# Cierro el dialog
+		self.downloader_dialog.accept()
+
+		if status == 'success':
+			# Se descargó y se lanzó el instalador, cierro la app
+			sys.exit()
+
+		elif status.startswith('error|'):
+			# Hubo un error. Extraigo el texto después de "error|"
+			error_msg = status.split('|')[1]
+
+			# Muestro el mensaje de error
+			QMessageBox.warning(self, 'Error', f'Se interrumpió la descarga.\nDetalle: {error_msg}')
+
+			# Recién cuando el usuario aprieta Aceptar, la app sigue
+			self.start_data_processing()
+
+		elif status == 'cancelled':
+			# El usuario lo canceló a mano. No muestro error, arranca normal directo
+			self.start_data_processing()
+
+
+	def start_data_processing(self):
+		"""Inicia el procesamiento de las listas de precios en un hilo secundario."""
 
 		# Vacio todo por si es una recarga
 		self.empty_everything()
 
 		# Creo el dialog de progreso
-		self.progress_dialog = ProgressDialog(self)
+		self.processor_dialog = ProgressDialog('Progreso de la carga', False, self)
 		
 		# Configuro el hilo y el worker
-		self.thread = QThread()
-		self.worker = Worker()
-		self.worker.moveToThread(self.thread)
+		self.processor_thread = QThread()
+		self.processor_worker = DataProcessor()
+		self.processor_worker.moveToThread(self.processor_thread)
 
-		# Conecto las señales del Worker al dialog
-		self.worker.message_changed.connect(self.progress_dialog.label.setText)
-		self.worker.progress_changed.connect(self.progress_dialog.progressBar.setValue)
+		# Conecto las señales del worker al dialog
+		self.processor_worker.message_changed.connect(self.processor_dialog.label.setText)
+		self.processor_worker.progress_changed.connect(self.processor_dialog.progressBar.setValue)
 		
 		# Conecto señales de ciclo de vida e inicio
-		self.thread.started.connect(self.worker.run)
-		self.worker.finished.connect(self.on_worker_finished) # acá recibo los datos
+		self.processor_thread.started.connect(self.processor_worker.run)
+		self.processor_worker.finished.connect(self.on_processing_finished) # acá recibo los datos
 		
 		# Limpieza de memoria al terminar
-		self.worker.finished.connect(self.thread.quit)
-		self.worker.finished.connect(self.worker.deleteLater)
-		self.thread.finished.connect(self.thread.deleteLater)
+		self.processor_worker.finished.connect(self.processor_thread.quit)
+		self.processor_worker.finished.connect(self.processor_worker.deleteLater)
+		self.processor_thread.finished.connect(self.processor_thread.deleteLater)
 
 		# Inicio el hilo y muestro el dialog de forma modal
-		self.thread.start()
-		self.progress_dialog.exec()
+		self.processor_thread.start()
+		self.processor_dialog.exec()
 
 
-	def on_worker_finished(self, final_data):
-		"""Recibe los datos cuando el Worker termina."""
+	def on_processing_finished(self, final_data):
+		"""
+		Carga los datos procesados en la UI, actualiza las tablas y muestra
+		el reporte final si existe.
+		"""
 
-		# Cierro el dialog personalizado
-		self.progress_dialog.accept()
+		# Cierro el dialog
+		self.processor_dialog.accept()
 
 		# Asigno los datos a la ventana principal
 		self.all_products_hh = final_data['hh']['products']
@@ -830,12 +1015,11 @@ class MainWindow(QMainWindow):
 
 	def prepare_report(self):
 		"""
-		Lee el diccionario de reportes de PDF y genera los strings finales
-		para sumarlos al reporte general.
+		Lee el diccionario de reportes de errores generados por el DataProcessor
+		y los formatea en un string amigable para mostrar en un QMessageBox.
 
-		El diccionario de reporte puede terminar teniendo una estructura
-		similar a esta, donde solamente se agrega algo cuando hubo un 
-		problema:
+		El diccionario de reporte tiene una estructura similar a esta. Solamente
+		se agrega algo al diccionario cuando hubo un problema:
 
 		{
 			'hh': {
@@ -868,81 +1052,122 @@ class MainWindow(QMainWindow):
 			'no_access': 'Imposible acceder a',
 			'no_link': 'No se encontró link',
 			'no_download': 'No se pudo descargar',
-			'local_used': 'Usando lista local',
+			'local_used': 'Usando lista local previa',
 			'local_missing': 'Lista local no encontrada',
 			'local_error': 'Error al procesar lista'
 		}
 		
 		brand_to_supplier = {
-			'hh': ' Tienda del Cardan',
-			'etma': ' Tienda del Cardan',
-			'camba': ' Bulonera Camba',
-			'rosario': ' Rosario Agro'
+			'hh': 'Tienda del Cardan',
+			'etma': 'Tienda del Cardan',
+			'camba': 'Bulonera Camba',
+			'rosario': 'Rosario Agro'
 		}
 		
 		msg = ''
 
+		# Itero sobre cada marca que tuvo algún problema
 		for brand, data in self.report.items():
+			# Agrego el título de la marca
 			msg += '<br><br>' if msg else ''
 			msg += f'<b><u>{brand.upper()}</u></b>'
 			
+			# PROBLEMAS CON LA LISTA EXCEL DE LA MARCA
 			if 'excel' in data:
+				# Agrego el tipo de lista
 				msg += '<br><b>Lista Excel</b>:'
 				
+				# Extraigo el estado de la lista local (ej: "local_used")
 				local_status = data['excel']['local_status']
-				reason = data['excel']['reason']
+
+				# Extraigo la razón del problema (ej: "no_access")
+				# Uso .get() porque si falló al procesar el excel descargado, "reason" no existe
+				reason = data['excel'].get('reason')
+
+				# Defino el ícono según si el programa pudo salvar la situación o no
 				symbol = '⚠️' if local_status == 'local_used' else '❌'
+
+				# Obtengo el texto que describe el estado local. Ej: "Usando lista local previa"
 				local_status_str = maps[local_status]
 
+				# Ajusto el texto si fue un error de procesamiento
 				if local_status == 'local_error':
 					if reason is None:
-						local_status_str += ' descargada'
+						local_status_str += ' recién descargada'
 					else:
 						local_status_str += ' local'
-					
-				reason_str = '' if not reason else maps[reason]
 
-				supplier_str = f'<i>{brand_to_supplier[brand]}</i>' if reason in ('no_url', 'no_access') else ''
+				# Armo la primera parte de la oración (el motivo del problema)
+				if reason:
+					reason_str = maps[reason]
 
-				msg += (
-					f' {symbol} {reason_str}{supplier_str}. '
-					f'{local_status_str}.'
-				)
+					# Si el problema fue de conexión al proveedor, agrego el nombre del mismo
+					if reason in ('no_url', 'no_access'):
+						supplier_str = f' <i>{brand_to_supplier[brand]}</i>'
+					else:
+						supplier_str = ''
 
+					# Ej: " Sin URL configurada para <i>Tienda del Cardan</i>."
+					first_part = f' {reason_str}{supplier_str}.'
+				else:
+					# Si no hay "reason", fue un error directo al procesar, no hay primera parte
+					first_part = ''
+
+				# Concateno todo. 
+				# Ej 1: " Sin URL configurada para <i>Tienda del Cardan</i>. ⚠️ Usando lista local previa."
+				# Ej 2: " ❌ Error al procesar lista recién descargada."
+				msg += f'{first_part} {symbol} {local_status_str}.'
+
+			# PROBLEMAS CON LOS ARCHIVOS PDF (CAMBA O ROSARIO)
 			if 'pdfs' in data:
+				# Agrego el tipo de lista
 				msg += '<br><b>Listas PDF</b>:'
 
+				# Itero sobre cada motivo de error (ej: "no_link", "no_download")
 				for reason, info in data['pdfs'].items():
 
+					# Junto todos los identificadores de PDFs que fallaron por este motivo
+					# Ej: ['01', '02', '05'] o ['Cadenas_LinkBelt', 'Crucetas_ETMA', 'Cuchillas_Agro']
 					sheets = info['missing'] + info['local']
-					sheets.sort() # ordeno las hojas por número
+					sheets.sort()
 
-					supplier_str = f'<i>{brand_to_supplier[brand]}</i>' if reason in ('no_url', 'no_access') else ''
+					# Ajusto gramática (singular o plural de la palabra "Hoja")
+					s = '' if len(sheets) == 1 else 's'
 
-					msg += f'<br>- Hojas {", ".join(sheets)}: {maps[reason]}{supplier_str}.'
+					# Agrego el proveedor si fue un error de conexión a la página del mismo
+					supplier_str = f' <i>{brand_to_supplier[brand]}</i>' if reason in ('no_url', 'no_access') else ''
 
+					# Ej: "<br>- Hojas 01, 02: Imposible acceder a <i>Bulonera Camba</i>."
+					# Ej: "<br>- Hoja 05: No se pudo descargar."
+					msg += f'<br>- Hoja{s} {", ".join(sheets)}: {maps[reason]}{supplier_str}.'
+
+					# PDFs que se pudieron salvar con archivos locales previos
 					if info['local']:
 						if set(info['local']) == set(sheets) and len(sheets) > 1:
-							sheets_str = 'todas'
+							# Todos los que fallaron tenían respaldo local
+							sheets_str = 'todas ellas'
 						else:
-							sheets_str = ", ".join(info["local"])
-						msg += f' ⚠️ Usando lista local para {sheets_str}.'
+							# Solo algunos tenían respaldo
+							sheets_str = ', '.join(info['local'])
 
+						# Ej: " ⚠️ Usando lista local previa para todas ellas."
+						# Ej: " ⚠️ Usando lista local previa para 01."
+						msg += f' ⚠️ Usando lista local previa para {sheets_str}.'
+
+					# PDFs que se perdieron completamente (no había local)
 					if info['missing']:
 						if set(info['missing']) == set(sheets) and len(sheets) > 1:
-							sheets_str = 'ninguna'
+							# Ninguno de los que fallaron tenía respaldo local
+							sheets_str = 'ninguna de ellas'
 						else:
-							sheets_str = ", ".join(info["missing"])
+							# Faltaron respaldos específicos
+							sheets_str = ', '.join(info['missing'])
+
+						# Ej: " ❌ Lista local no encontrada para ninguna de ellas."
+						# Ej: " ❌ Lista local no encontrada para 05."
 						msg += f' ❌ Lista local no encontrada para {sheets_str}.'
-						
 
 		return msg
-
-
-
-	############################################################################################
-	# MÉTODOS QUE TOCAN LOS WIDGETS O SON DISPARADOS POR ACCIONES DEL USUARIO
-	############################################################################################
 
 
 	def apply_theme(self, theme):
@@ -1161,7 +1386,7 @@ class MainWindow(QMainWindow):
 		- page_number: La página donde se quiere arrancar (por defecto 1).
 		"""
 
-		base_path = Path(os.getenv('APPDATA')) / 'PrecioFacil' / 'listas' / brand
+		base_path = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'listas' / brand
 		pdf_file_path = None
 
 		if not base_path.exists():
@@ -1260,7 +1485,7 @@ class MainWindow(QMainWindow):
 
 		# Verifico si recargar
 		if dialog.new_supplier_urls:
-			self.initialize()
+			self.start_data_processing()
 
 
 	def open_about(self):
@@ -1311,39 +1536,58 @@ class AboutDialog(QDialog):
 
 
 class ProgressDialog(QDialog):
-	def __init__(self, parent=None):
+	def __init__(self, title, cancellable=True, parent=None):
 		super().__init__(parent)
 
 		# Cargo la UI
 		uic.loadUi('ui/progress.ui', self)
 
-		# Quito el botón de cerrar de la ventana para que el usuario no lo interrumpa
-		self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
+		self.setWindowTitle(title)
+		self.cancellable = cancellable
+		self.pushButton_cancel.clicked.connect(self.reject)
 
-		# Centro el dialog en la pantalla
-		self.center()
+		if not self.cancellable:
+			# Deshabilito la 'X' de la ventana
+			self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
 
+			# Escondo el botón de Cancelar
+			self.pushButton_cancel.hide()
 
-	def center(self):
-		"""Centra el dialog en la pantalla"""
-
-		# Rectángulo que define la geometría del dialog
-		qr = self.frameGeometry()
-
-		# Punto central de la pantalla
-		cp = self.screen().availableGeometry().center()
-
-		# Muevo el centro del rectángulo del dialog al centro de la pantalla
-		qr.moveCenter(cp)
-
-		# Muevo el dialog a la posición de la esquina superior izquierda del rectángulo ya centrado
-		self.move(qr.topLeft())
+			# Ajusto y fijo la altura del dialog manteniendo el ancho
+			current_width = self.width()
+			self.adjustSize()
+			self.setFixedSize(current_width, self.height())
+		else:
+			# Fijo el tamaño original que vino de Qt Designer (con el botón visible)
+			self.setFixedSize(self.width(), self.height())
 
 
-# Initialize the app
+	def reject(self):
+		"""
+		Atrapa el botón Cancelar, la tecla Escape y la 'X'.
+		Si no es cancelable, ignora la orden de cierre.
+		"""
+		if not self.cancellable:
+			return 
+
+		# Si ES cancelable, ejecuta el cierre normal
+		super().reject()
+
+
+
+# Inicializo la app
 if __name__ == "__main__":
 	app = QApplication(sys.argv)
+
+	# Establezco tema de aplicación
 	app.setStyle('Fusion')
+
+	# Configuro traducción al español de botones
+	translator = QTranslator()
+	path = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
+	if translator.load('qtbase_es', path):
+		app.installTranslator(translator)
+
 	window = MainWindow()
 	window.show()
 	sys.exit(app.exec())
