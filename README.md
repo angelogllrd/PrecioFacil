@@ -1,3 +1,7 @@
+<p align="center">
+  <img width="245" height="245" alt="precio_facil_logo" src="https://github.com/user-attachments/assets/e5d90528-a676-4994-beb2-8c6c1bfd1c09" />
+</p>
+
 # 🛒 PrecioFacil
 
 **PrecioFacil** es una aplicación de escritorio diseñada para centralizar, actualizar y agilizar la búsqueda de listas de precios de proveedores específicos del sector agroindustrial y ferretero ([Tienda del Cardan](https://tiendadecardan.com.ar/), [Bulonera Camba](https://buloneracamba.com.ar/) y [Rosario Agro Industrial](https://www.rosarioagroindustrial.com/)). 
