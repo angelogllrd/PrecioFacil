@@ -43,18 +43,63 @@ import requests
 from openpyxl.utils import get_column_letter
 from PyQt6 import uic
 from PyQt6.QtCore import (QLibraryInfo, QObject, Qt, QThread, QTimer,
-                          QTranslator, QUrl, pyqtSignal)
+						  QTranslator, QUrl, pyqtSignal)
 from PyQt6.QtGui import QDesktopServices, QFont, QIcon
 from PyQt6.QtWidgets import (QApplication, QDialog, QHeaderView, QMainWindow,
-                             QMessageBox, QTableWidget, QTableWidgetItem)
+							 QMessageBox, QTableWidget, QTableWidgetItem)
 
 # -----------------------
 # Módulos del proyecto
 # -----------------------
 from utils import (CAMBA_CATEGORIES, CAMBA_SHEETS, CURRENT_VERSION,
-                   MOST_USED_PRODUCTS_CAMBA, MOST_USED_PRODUCTS_ETMA,
-                   MOST_USED_PRODUCTS_HH, REPO_NAME, REPO_OWNER, ROSARIO_URLS,
-                   SETTINGS)
+				   MOST_USED_PRODUCTS_CAMBA, MOST_USED_PRODUCTS_ETMA,
+				   MOST_USED_PRODUCTS_HH, REPO_NAME, REPO_OWNER, ROSARIO_URLS,
+				   SETTINGS)
+
+
+
+class UpdateChecker(QObject):
+	finished = pyqtSignal(dict) 
+
+	def run(self):
+		"""
+		Comprueba en GitHub si hay una versión nueva, y emite una diccionario con
+		el resultado de la búsqueda.
+		"""
+
+		# NOTA: Se movió la verificación de actualizaciones desde MainWindow a un 
+		# hilo aparte porque requests.get(url, timeout=3) bloqueaba la interfaz 
+		# hasta 3 segundos. Esto provocaba que la ventana no se renderice correctamente
+		# mostrando descentrados el QMessageBox de actualización o el QDialog de 
+		# progreso al inicio.
+		# Ahora se ejecuta en segundo plano para evitar congelamientos.
+
+		url = f'https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/latest'
+		
+		try:
+			# Consulto el último release en GitHub
+			response = requests.get(url, timeout=3)
+			response.raise_for_status()
+			data = response.json()
+			latest_version = data['tag_name'].lstrip('v')
+
+			# Comparo versiones
+			if latest_version != CURRENT_VERSION:
+				download_url = data['assets'][0]['browser_download_url'] # No necesito iterar (un solo asset siempre, el .exe)
+				# Hay actualización, emito los datos
+				self.finished.emit({
+					'has_update': True, 
+					'version': latest_version, 
+					'url': download_url
+				})
+				return
+
+		except Exception:
+			# Si falla (sin internet o error de API), lo ignoro
+			pass 
+
+		# Si llegué acá, no hay actualización o falló la conexión
+		self.finished.emit({'has_update': False})
 
 
 
@@ -149,8 +194,6 @@ class DataProcessor(QObject):
 		
 		# Emito el entero a la barra de progreso
 		self.progress_changed.emit(int(self.current_progress))
-
-		# print(f'{self.current_progress:.2f}', message if message else '')
 
 
 	# CÓDIGO PRINCIPAL
@@ -820,47 +863,51 @@ class MainWindow(QMainWindow):
 		self.apply_theme('light') # Tema claro por defecto
 		self.showMaximized() # Ventana maximizada
 
-		# Primero compruebo si hay actualizaciones
-		# Si NO hay, o el usuario cancela, inicio el flujo normal
-		QTimer.singleShot(1, lambda: self.start_data_processing() if not self.check_updates() else None) # Evito problemas de centrado
+		# Comienzo comprobando actualizaciones
+		self.start_update_check()
 
 
-	def check_updates(self):
-		"""
-		Comprueba en GitHub si hay una versión nueva.
-		* Devuelve True si se inició el proceso de actualización.
-		* Devuelve False si no hay actualización o si el usuario dijo que NO.
-		"""
+	def start_update_check(self):
+		"""Inicia la comprobación de actualizaciones en un hilo secundario."""
 
-		url = f'https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/latest'
+		# Configuro el hilo y el worker
+		self.checker_thread = QThread()
+		self.checker_worker = UpdateChecker()
+		self.checker_worker.moveToThread(self.checker_thread)
 
-		try:
-			# Consulto el último release en GitHub
-			response = requests.get(url, timeout=3) # 3 seg para que falle rápido si no hay internet
-			response.raise_for_status()
-			data = response.json()
-			latest_version = data['tag_name'].lstrip('v')
+		# Conecto señales de inicio y fin
+		self.checker_thread.started.connect(self.checker_worker.run)
+		self.checker_worker.finished.connect(self.on_update_check_finished)
 
-			# Comparo versiones
-			if latest_version != CURRENT_VERSION:
-				# Pregunto al usuario
-				reply = QMessageBox.question(
-					self,
-					'Actualización disponible',
-					f'Hay una nueva versión de PrecioFacil ({latest_version}).\n¿Querés actualizar ahora?',
-					QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-				)
+		# Limpieza de memoria
+		self.checker_worker.finished.connect(self.checker_thread.quit)
+		self.checker_worker.finished.connect(self.checker_worker.deleteLater)
+		self.checker_thread.finished.connect(self.checker_thread.deleteLater)
 
-				if reply == QMessageBox.StandardButton.Yes:
-					download_url = data['assets'][0]['browser_download_url'] # No necesito iterar (un solo asset siempre, el .exe)
-					self.start_update_download(download_url)
-					return True # Avisa para no hacer start_data_processing()
+		# Arranco el hilo
+		self.checker_thread.start()
 
-		except Exception:
-			# Si falla, simplemente ignoramos y la app arranca normal
-			pass 
 
-		return False
+	def on_update_check_finished(self, result):
+		"""Recibe el resultado de GitHub y decide qué hacer."""
+		
+		# Si el worker detectó una actualización
+		if result['has_update']:
+			# Pregunto al usuario
+			reply = QMessageBox.question(
+				self,
+				'Actualización disponible',
+				f'Hay una nueva versión de PrecioFacil ({result["version"]}).\n¿Querés actualizar ahora?',
+				QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+			)
+
+			if reply == QMessageBox.StandardButton.Yes:
+				self.start_update_download(result['url'])
+				return # Salgo para no iniciar la carga de datos
+
+		# Si NO hay actualización, o hubo error, o el usuario dijo que NO:
+		# Inicio el flujo normal de la aplicación
+		self.start_data_processing()
 
 
 	def start_update_download(self, download_url):
