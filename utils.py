@@ -1,7 +1,7 @@
 from PyQt6.QtCore import QSettings
 
 
-CURRENT_VERSION = '1.0.0'
+CURRENT_VERSION = '1.1.0'
 REPO_OWNER = 'angelogllrd'
 REPO_NAME = 'PrecioFacil'
 

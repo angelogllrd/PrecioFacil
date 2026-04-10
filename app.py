@@ -1329,14 +1329,21 @@ class MainWindow(QMainWindow):
 		if not all_products:
 			return
 
-		# Normalizo el texto del filtro
-		query = ' '.join(query.split()).lower()
+		# Divido el filtro en palabras
+		query_words = query.lower().split()
 
 		# Busco productos coincidentes
-		if query:
+		if query_words:
 			filtered_products = []
 			for product in all_products:
-				if query in product['code'].lower() or query in product['subcategory'].lower() or query in product['description'].lower():
+				match = True
+				for word in query_words:
+					if (word not in product['code'].lower()
+						and word not in product['subcategory'].lower() 
+						and word not in product['description'].lower()
+					):
+						match = False
+				if match:
 					filtered_products.append(product)
 			self.list_products(filtered_products, table_widget)
 		else: # Si no hay nada escrito, muestro todos los productos
