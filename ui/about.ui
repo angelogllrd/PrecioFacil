@@ -104,7 +104,7 @@
           </font>
          </property>
          <property name="text">
-          <string>v1.0.0</string>
+          <string>v1.1.0</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
