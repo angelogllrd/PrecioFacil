@@ -40,21 +40,23 @@ from urllib.parse import unquote, urlparse
 import bs4
 import openpyxl
 import requests
+from dotenv import load_dotenv
 from openpyxl.utils import get_column_letter
 from PyQt6 import uic
 from PyQt6.QtCore import (QLibraryInfo, QObject, Qt, QThread, QTimer,
-						  QTranslator, QUrl, pyqtSignal)
+                          QTranslator, QUrl, pyqtSignal)
 from PyQt6.QtGui import QDesktopServices, QFont, QIcon
 from PyQt6.QtWidgets import (QApplication, QDialog, QHeaderView, QMainWindow,
-							 QMessageBox, QTableWidget, QTableWidgetItem)
+                             QMessageBox, QTableWidget, QTableWidgetItem)
 
 # -----------------------
 # Módulos del proyecto
 # -----------------------
 from utils import (CAMBA_CATEGORIES, CAMBA_SHEETS, CURRENT_VERSION,
-				   MOST_USED_PRODUCTS_CAMBA, MOST_USED_PRODUCTS_ETMA,
-				   MOST_USED_PRODUCTS_HH, REPO_NAME, REPO_OWNER, ROSARIO_URLS,
-				   SETTINGS)
+                   MOST_USED_PRODUCTS_CAMBA, MOST_USED_PRODUCTS_ETMA,
+                   MOST_USED_PRODUCTS_HH, REPO_NAME, REPO_OWNER, ROSARIO_URLS,
+                   SETTINGS)
+
 
 
 
@@ -100,7 +102,6 @@ class UpdateChecker(QObject):
 
 		# Si llegué acá, no hay actualización o falló la conexión
 		self.finished.emit({'has_update': False})
-
 
 
 class UpdateDownloader(QObject):
@@ -179,6 +180,9 @@ class DataProcessor(QObject):
 		# Sesión persistente (acelera mucho, evita abrir una conexión nueva cada vez)
 		self.session = requests.Session()
 
+		# Variable para almacenar el token de la sesión
+		self.tdc_token = None
+
 
 	def update_progress(self, points_to_add, message=None):
 		"""Suma puntos al progreso total y actualiza la UI."""
@@ -218,65 +222,125 @@ class DataProcessor(QObject):
 		# Calculo puntajes de progreso
 		camba_files = 1 + len(CAMBA_SHEETS) # 1 excel + N pdfs
 		rosario_files = len(ROSARIO_URLS)
-		self.points_per_brand = 25
+		self.points_per_brand = 25 # 4 marcas
 		self.points_per_file_camba = self.points_per_brand / camba_files
 		self.points_per_file_rosario = self.points_per_brand / rosario_files
 
 		self.update_progress(0, 'Iniciando carga...')
 
-		suppliers = {
-			'tdc':   ('hh', 'etma'),
-			'camba': ('camba',)
-		}
-
-		for supplier, brands in suppliers.items():
-
-			# Recupero la URL del proveedor
-			supplier_url = self.get_url_from_settings(supplier)
-			if not supplier_url:
-				self.handle_supplier_down(brands, 'no_url')
-				continue
-
-			# Obtengo el HTML de esa URL y lo parseo
-			try:
-				html = self.download_html(supplier_url)
-				soup = bs4.BeautifulSoup(html, 'html.parser')
-			except Exception:
-				self.handle_supplier_down(brands, 'no_access')
-				continue
-
-			# Proceso los excel de cada marca
-			for brand in brands:
+		# 1. PROCESO TIENDA DEL CARDAN (HH y ETMA) VÍA API PROTEGIDA
+		self.update_progress(0, 'Conectando con Tienda del Cardan...')
+		if self.login_tienda_cardan():
+			for brand in ('hh', 'etma'):
 				self.update_progress(0, f'Procesando {brand.upper()}...')
-				self.process_brand(soup, brand)
+				self.process_tdc_brand(brand)
+		else:
+			self.handle_supplier_down(('hh', 'etma'), 'login_failed')
 
-			# Si el proveedor es CAMBA, busco los PDF de las hojas
-			if supplier == 'camba':
+		# 2. PROCESO CAMBA VÍA WEB SCRAPING
+		supplier_url_camba = self.get_url_from_settings('camba')
+		if not supplier_url_camba:
+			self.handle_supplier_down(('camba',), 'no_url')
+		else:
+			# Obtengo el HTML de la URL, lo parseo, y proceso excel y pdfs
+			try:
+				html = self.download_html(supplier_url_camba)
+				soup = bs4.BeautifulSoup(html, 'html.parser')
+				self.update_progress(0, 'Procesando CAMBA...')
+				self.process_camba_brand(soup)
 				self.process_camba_pdfs(soup)
+			except Exception:
+				self.handle_supplier_down(('camba',), 'no_access')
 
-		# Proceso los links fijos de ROSARIO
+		# 3. PROCESO ROSARIO AGRO
 		self.update_progress(0, 'Procesando ROSARIO AGRO...')
 		self.process_rosario_pdfs()
 
 		self.update_progress(100, '¡Carga completada!')
-
-		# Devuelvo todos los datos recolectados al MainWindow
-		self.finished.emit(self.all_data)
+		self.finished.emit(self.all_data) # Devuelvo datos recolectados al MainWindow
 
 
 	# PROCESAMIENTO POR MARCA
 	# ------------------------------------------------------------------------------------------
 
-	def process_brand(self, soup, brand):
-		"""Busca la URL de la lista excel en el soup, la descarga y la procesa."""
+	def login_tienda_cardan(self):
+		"""Inicia sesión en Firebase y guarda el token para usarlo en las descargas."""
 
-		if brand == 'camba':
-			step_points = self.points_per_file_camba / 3
-		else:
-			step_points = self.points_per_brand / 3
+		
+		# 1. Cargo las variables desde el archivo .env
+		# -------------------------------------------------------
+
+		load_dotenv()
+
+		# Obtengo las credenciales
+		api_key = os.getenv('FIREBASE_API_KEY')
+		email = os.getenv('USER_EMAIL')
+		password = os.getenv('USER_PASSWORD')
+
+		# Valido que las variables existan
+		if not api_key or not email or not password:
+			return False # Falta el .env o credenciales en el mismo
+
+		# 2. Configuración de Firebase
+		# -------------------------------------------------------
+
+		# Endpoint oficial de Firebase para login con email/password
+		url_firebase = f'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}'
+
+		credenciales = {
+			'email': email, 
+			'password': password, 
+			'returnSecureToken': True # Obligatorio para que me devuelva el token
+		}
+
+		# 3. Inicio sesión en Firebase
+		# -------------------------------------------------------
+
+		try:
+			response = self.session.post(url_firebase, json=credenciales, timeout=10)
+			response.raise_for_status()
+			self.tdc_token = response.json().get('idToken') # Extraigo el token de la respuesta JSON
+			return True
+		except Exception:
+			return False
+
+
+	def process_tdc_brand(self, brand):
+		"""Procesa las marcas de TDC directamente desde la API."""
+
+		step_points = self.points_per_brand / 2 # 1=descargar, 2=procesar (link ya lo tengo)
+
+		# Link de la lista
+		list_url = f'https://app.tiendadecardan.com.ar/api/precios/descargar-base?marca={brand.upper()}&format=xlsx'
+
+		# Descargo la lista
+		try:
+			excel_file_path = self.download_excel_file(list_url, brand)
+			self.update_progress(step_points)
+		except Exception:
+			self.check_local_excel_list(brand, 'no_download')
+			self.update_progress(step_points) # Sumo el paso restante (procesar)
+			return
+
+		# Proceso excel descargado
+		try:
+			self.process_excel(excel_file_path, brand)
+		except Exception:
+			self.report.setdefault(brand, {})['excel'] = {
+				'local_status': 'local_error'
+			}
+
+		self.update_progress(step_points)
+
+
+	def process_camba_brand(self, soup):
+		"""Busca la URL de la lista excel de CAMBA en el soup, la descarga y la procesa."""
+
+		brand = 'camba'
+		step_points = self.points_per_file_camba / 3 # 1=link, 2=descargar, 3=procesar
 
 		# Busco link de la lista
-		list_url = self.get_list_url_from_soup(soup, brand)
+		list_url = self.get_camba_list_url_from_soup(soup)
 		self.update_progress(step_points)
 		if not list_url:
 			self.check_local_excel_list(brand, 'no_link')
@@ -286,14 +350,9 @@ class DataProcessor(QObject):
 		# Descargo la lista
 		try:
 			excel_file_path = self.download_excel_file(list_url, brand)
-
-			# Tengo archivo nuevo: actualizo fecha de validez si es CAMBA
-			if brand == 'camba':
-				camba_last_date = self.resolve_camba_date(soup, excel_file_path)
-				SETTINGS.setValue('camba_last_date', camba_last_date)
-
+			camba_last_date = self.resolve_camba_date(soup, excel_file_path) # Porque CAMBA no tiene la fecha en el excel
+			SETTINGS.setValue('camba_last_date', camba_last_date)
 			self.update_progress(step_points)
-
 		except Exception:
 			self.check_local_excel_list(brand, 'no_download')
 			self.update_progress(step_points) # Solo sumo el paso restante (procesar)
@@ -412,9 +471,9 @@ class DataProcessor(QObject):
 
 	def handle_supplier_down(self, brands, reason):
 		"""
-		Fallback general llamado cuando:
-		  * No hay URL del proveedor.
-		  * No se pudo obtener HTML de la URL.
+		Fallback general llamado cuando falla la conexión inicial con un proveedor:
+		  * Falla el inicio de sesión en la API (TDC).
+		  * No hay URL configurada o no se pudo obtener el HTML (CAMBA).
 		Llama al fallback de marca por cada marca del proveedor. Además, 
 		si es CAMBA, chequea las hojas PDF locales.
 		"""
@@ -425,7 +484,7 @@ class DataProcessor(QObject):
 
 			# Si es CAMBA, compruebo PDFs locales
 			if brand == 'camba':
-				self.update_progress(self.points_per_file_camba) # excel recién procesado
+				self.update_progress(self.points_per_file_camba) # excel recién procesado arriba
 				for sheet_num in CAMBA_SHEETS:
 					self.check_local_pdf_list('camba', sheet_num, reason)
 					self.update_progress(self.points_per_file_camba)
@@ -435,9 +494,9 @@ class DataProcessor(QObject):
 
 	def check_local_excel_list(self, brand, reason):
 		"""
-		Fallback por marca llamado cuando:
-		  * No se encontró el link de la lista en el HTML.
-		  * No se pudo descargar el excel.
+		Fallback por marca llamado cuando falla la obtención del archivo original:
+		  * No se encontró el link de la lista (CAMBA).
+		  * Falla la petición de descarga (TDC / CAMBA).
 		Comprueba si existe un excel local previamente descargado y lo procesa.
 		"""
 
@@ -506,40 +565,19 @@ class DataProcessor(QObject):
 		return response.text
 
 
-	def get_list_url_from_soup(self, soup, brand):
-		"""Obtiene del sitio del proveedor el link actual de la lista correspondiente."""
+	def get_camba_list_url_from_soup(self, soup):
+		"""Obtiene del sitio de CAMBA el link actual de la lista formato sábana."""
 
-		if brand in ('hh', 'etma'):
-			# Busco el título correcto
-			h1_elem = soup.find(
-				'h1', 
-				string=lambda s: s and s.strip().upper() in (
-					f'LISTA DE PRECIO {brand.upper()}',
-					f'LISTA DE PRECIOS {brand.upper()}'
-				)
-			)
-			if not h1_elem:
-				return None
+		# Busco el título correcto
+		h2_elem = soup.find(
+			'h2', 
+			string=lambda s: s and 'Lista de precios formato sabana' in s.strip()
+		)
+		if not h2_elem:
+			return None
 
-			# Subo al bloque contenedor
-			container = h1_elem.find_parent('div', class_='widget-span')
-			if not container:
-				return None
-
-			# Busco el link dentro del bloque
-			a_elem = container.find_next('a', href=True)
-
-		elif brand == 'camba':
-			# Busco el título correcto
-			h2_elem = soup.find(
-				'h2', 
-				string=lambda s: s and 'Lista de precios formato sabana' in s.strip()
-			)
-			if not h2_elem:
-				return None
-
-			# Busco el link
-			a_elem = h2_elem.find_parent('a')
+		# Busco el link
+		a_elem = h2_elem.find_parent('a')
 
 		return a_elem['href'] if a_elem else None
 
@@ -551,26 +589,42 @@ class DataProcessor(QObject):
 		base_path = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'listas' / brand
 		base_path.mkdir(parents=True, exist_ok=True)
 
-		# Descargo el archivo
-		response = requests.get(url, timeout=10)
+		# 1. Configuro los encabezados dinámicamente según la marca
+		headers = {
+			'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+		}
+
+		# Si es TDC, le inyecto el token
+		if brand in ('hh', 'etma') and self.tdc_token:
+			headers['Authorization'] = f'Bearer {self.tdc_token}'
+
+		# 2. Descargo el archivo
+		response = self.session.get(url, headers=headers, timeout=10)
 		response.raise_for_status()
 
 		# Borro excel previo
 		for old_excel_file in base_path.glob('*.xlsx'):
 			old_excel_file.unlink()
 
-		if brand in ('hh', 'etma'): # la URL entrega un excel
-			# Obtengo el nombre original del archivo desde la URL
-			excel_original_name = os.path.basename(urlparse(url).path)
-			excel_original_name = unquote(excel_original_name) # reemplaza %20 por espacios
+		# 3. Guardo el archivo dependiendo de si es Excel directo o ZIP
+		if brand in ('hh', 'etma'):
+			# Busco el nombre original en los encabezados del servidor
+			excel_original_name = f'lista_precios_{brand}.xlsx' # Nombre por defecto (Fallback)
 
-			# Obtengo la ruta completa
-			excel_file_path = base_path / excel_original_name			
+			content_disposition = response.headers.get('content-disposition')
+			if content_disposition and 'filename=' in content_disposition:
+				# Extraigo el texto que está después de "filename=" y limpio comillas
+				# Ejemplo: attachment; filename="lista_hh_08_2026.xlsx" -> lista_hh_08_2026.xlsx
+				excel_original_name = content_disposition.split('filename=')[1].split(';')[0].strip('"\'')
+
+			# Armo la ruta con el nombre detectado
+			excel_file_path = base_path / excel_original_name		
 
 			# Guardo el archivo descargado
 			with open(excel_file_path, 'wb') as f:
 				f.write(response.content)
-		else: # la URL entrega un zip
+
+		else: # la URL entrega un zip (Camba)
 			with zipfile.ZipFile(BytesIO(response.content)) as z:
 				for name in z.namelist():
 					if name.lower().endswith('.xlsx'):
@@ -623,9 +677,9 @@ class DataProcessor(QObject):
 	def extract_date_from_filename(self, path):
 		"""Extrae la fecha desde el nombre del archivo excel de CAMBA."""
 		
-		match = re.search(r'\d{2}-\d{2}-\d{4}', path)
+		match = re.search(r'\d{2}[-_]\d{2}[-_]\d{4}', path)
 		if match:
-			return match.group().replace('-', '/')
+			return re.sub(r'[-_]', '/', match.group())
 		return None
 
 
@@ -662,20 +716,20 @@ class DataProcessor(QObject):
 		default_cols = {
 			'hh': {
 				'code_col': 'A',
-				'subcategory_col': 'B',
-				'description_col': 'C',
-				'price_col': 'E'
+				'subcategory_col': None,
+				'description_col': 'B',
+				'price_col': 'C'
 			},
 			'etma': {
 				'code_col': 'A',
-				'subcategory_col': 'B',
-				'description_col': 'C',
-				'price_col': 'E'
+				'subcategory_col': None,
+				'description_col': 'B',
+				'price_col': 'C'
 			},
 			'camba': {
-				'code_col': 'C',
+				'code_col': 'B',
 				'subcategory_col': 'J',
-				'description_col': 'B',
+				'description_col': 'C',
 				'price_col': 'E'
 			}
 		}
@@ -686,23 +740,32 @@ class DataProcessor(QObject):
 		description_col = default_cols[brand]['description_col']
 		price_col = default_cols[brand]['price_col']
 
+		header_row = None
+
+		# Busco la fila de encabezados
 		for row in sheet['A1':'E20']:
 			for cell in row:
-				# Encuentro la fila de encabezados
-				if str(cell.value).strip().lower() in ('codigo', 'código', 'cod', 'cód'):
+				value = str(cell.value or '').strip().lower()
+
+				if value in ('sku', 'referencia interna'):
 					header_row = cell.row
 					code_col = get_column_letter(cell.column)
-
-					# Recorro fila de encabezados e identifico cada uno
-					for header_cell in sheet[header_row]:
-						value = str(header_cell.value).strip().lower()
-						if value in ('subrubro', 'sub rubro', 'rubro'):
-							subcategory_col = get_column_letter(header_cell.column)
-						elif value in ('descripción', 'descripcion', 'desc', 'articulo', 'artículo'):
-							description_col = get_column_letter(header_cell.column)
-						elif value in ('precio + iva', 'precio'):
-							price_col = get_column_letter(header_cell.column)
 					break
+
+			if header_row is not None:
+				break
+
+		# Si encontré la fila, identifico las demás columnas
+		if header_row is not None:
+			for header_cell in sheet[header_row]:
+				value = str(header_cell.value or '').strip().lower()
+
+				if 'categoría' in value or 'categoria' in value:
+					subcategory_col = get_column_letter(header_cell.column)
+				elif 'nombre' in value or 'producto' in value:
+					description_col = get_column_letter(header_cell.column)
+				elif 'precio' in value:
+					price_col = get_column_letter(header_cell.column)
 
 		return {
 			'code_col': code_col,
@@ -736,10 +799,11 @@ class DataProcessor(QObject):
 		# Para CAMBA se busca en la configuración guardada
 		if brand == 'camba':
 			stored_date = SETTINGS.value('camba_last_date', '', type=str)
+			
 			if stored_date:
 				return f'📆 Precios válidos para el: {stored_date}'
-			else:
-				return '📆 Fecha no disponible'
+
+			return '📆 Fecha no disponible'
 
 		# Para HH o ETMA se busca en las primeras celdas
 		for row in sheet['A1':'E20']:
@@ -748,10 +812,16 @@ class DataProcessor(QObject):
 				if not cell.value:
 					continue
 
-				# Busco la fecha en la celda
-				value = str(cell.value)
-				if re.search(r'\d{1,2}/\d{1,2}/\d{2,4}', value) and ('valid' in value or 'válid' in value):
-					return '📆 ' + value.replace('validos', 'válidos')
+				value = str(cell.value).strip().lower()
+
+				# La celda de fecha contiene "Fecha de actualizacion"
+				if 'fecha' not in value:
+					continue
+
+				match = re.search(r'\d{2}[-/]\d{2}[-/]\d{4}', value)
+				if match:
+					date = match.group().replace('-', '/')
+					return f'📆 Precios válidos para el: {date}'
 
 		return '📆 Fecha no encontrada'
 
@@ -787,6 +857,10 @@ class DataProcessor(QObject):
 		"""Retorna si una fila corresponde o no a un producto."""
 
 		for col in header_cols.values():
+			# Ignoro las columnas que no existen para esta marca (ej: subcategoría en HH/ETMA)
+			if col is None:
+				continue
+
 			if sheet[col + str(row)].value is None:
 				return False
 		return True

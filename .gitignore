@@ -1,3 +1,7 @@
+prueba.py
+*.xlsx
+*.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
