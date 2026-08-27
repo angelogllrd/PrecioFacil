@@ -27,6 +27,8 @@ ROSARIO_URLS = (
     'https://www.rosarioagroindustrial.com/download.php?f=Termoplasticos.pdf'
 )
 
+'''
+CAMBA ahora incluye la subcategoria en el excel y no hace falta traducir
 
 CAMBA_CATEGORIES = {
     # HOJA 1
@@ -366,7 +368,7 @@ CAMBA_CATEGORIES = {
     '24F': 'MACHOS VARIOS',
     'LED': 'LAMPARA PORTATIL LED 12V 5MT / ADAPTADOR ENCENDEDOR',
 }
-
+'''
 
 MOST_USED_PRODUCTS_HH = {
     'CRUCETAS K5-18': {

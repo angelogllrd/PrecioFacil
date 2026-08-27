@@ -52,7 +52,7 @@ from PyQt6.QtWidgets import (QApplication, QDialog, QHeaderView, QMainWindow,
 # -----------------------
 # Módulos del proyecto
 # -----------------------
-from utils import (CAMBA_CATEGORIES, CAMBA_SHEETS, CURRENT_VERSION,
+from utils import (CAMBA_SHEETS, CURRENT_VERSION,
                    MOST_USED_PRODUCTS_CAMBA, MOST_USED_PRODUCTS_ETMA,
                    MOST_USED_PRODUCTS_HH, REPO_NAME, REPO_OWNER, ROSARIO_URLS,
                    SETTINGS)
@@ -837,10 +837,18 @@ class DataProcessor(QObject):
 				if isinstance(price, float):
 					price = f'{price:,}'.replace('.', '_').replace(',', '.').replace('_', ',')
 
-				# Mapeo categoría si es CAMBA
-				subcategory = sheet[header_cols['subcategory_col'] + str(row)].value
-				if brand == 'camba':
-					subcategory = CAMBA_CATEGORIES.get(subcategory, 'CATEGORIA NO DEFINIDA')
+				# Gestión de la subcategoría
+				subcategory = "GENERAL" # Valor por defecto si la marca no tiene subcategoría
+
+				if header_cols['subcategory_col']:
+					raw_subcat = sheet[header_cols['subcategory_col'] + str(row)].value
+					raw_subcat = str(raw_subcat).strip()
+
+				if brand == 'camba' and ' - ' in raw_subcat:
+						# Corto "1A - BULON EXAG..." y se queda solo con el nombre
+						subcategory = raw_subcat.split(' - ', 1)[1].strip()
+					else:
+						subcategory = raw_subcat
 
 				# Creo el diccionario y lo agrego a la lista
 				product = {
