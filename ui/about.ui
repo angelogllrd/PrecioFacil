@@ -26,6 +26,9 @@
    <string>Acerca de</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
+   <property name="sizeConstraint">
+    <enum>QLayout::SizeConstraint::SetFixedSize</enum>
+   </property>
    <property name="verticalSpacing">
     <number>0</number>
    </property>

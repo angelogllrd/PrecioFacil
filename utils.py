@@ -27,6 +27,7 @@ ROSARIO_URLS = (
     'https://www.rosarioagroindustrial.com/download.php?f=Termoplasticos.pdf'
 )
 
+
 '''
 CAMBA ahora incluye la subcategoria en el excel y no hace falta traducir
 
@@ -370,6 +371,7 @@ CAMBA_CATEGORIES = {
 }
 '''
 
+
 MOST_USED_PRODUCTS_HH = {
     'CRUCETAS K5-18': {
         '5412': 'HORQUILLA CIEGA CON BASE Ø 58 mm',
@@ -378,7 +380,6 @@ MOST_USED_PRODUCTS_HH = {
         '5418': 'HORQUILLA CON 6 ESTRIAS Ø 35 mm',
         '5420': 'HORQUILLA CON 6 ESTRIAS CON SEGURO A BOTON',
         '5417': 'HORQUILLA CON 6 ESTRIAS CON SEGURO A BOLITAS',
-        '5414': 'HORQUILLA CON 6 ESTRIAS Ø 45',
         '2278': 'CRUCETA K5-18 CON RODILLO',
         '5409': 'CRUCETA K5-18 CON BUJE'
     },

@@ -835,29 +835,25 @@ class DataProcessor(QObject):
 				# Formateo precios de tipo float (necesario en CAMBA)
 				price = sheet[header_cols['price_col'] + str(row)].value
 				if isinstance(price, float):
-					price = f'{price:,}'.replace('.', '_').replace(',', '.').replace('_', ',')
+					price = f'{price:,.2f}'.replace('.', '_').replace(',', '.').replace('_', ',')
 
-				# Gestión de la subcategoría
-				subcategory = "GENERAL" # Valor por defecto si la marca no tiene subcategoría
-
-				if header_cols['subcategory_col']:
-					raw_subcat = sheet[header_cols['subcategory_col'] + str(row)].value
-					raw_subcat = str(raw_subcat).strip()
-
-				if brand == 'camba' and ' - ' in raw_subcat:
-						# Corto "1A - BULON EXAG..." y se queda solo con el nombre
-						subcategory = raw_subcat.split(' - ', 1)[1].strip()
-					else:
-						subcategory = raw_subcat
-
-				# Creo el diccionario y lo agrego a la lista
+				# Creo diccionario sin subcategoría
 				product = {
 					'code': sheet[header_cols['code_col'] + str(row)].value,
-					'subcategory': subcategory,
 					'description': sheet[header_cols['description_col'] + str(row)].value,
 					'price': f'$ {price}'
 				}
+
+				# Si es CAMBA, agrego la subcategoría
+				if brand == 'camba' and header_cols['subcategory_col']:
+					raw_subcat = str(sheet[header_cols['subcategory_col'] + str(row)].value).strip()
+					if ' - ' in raw_subcat:
+						product['subcategory'] = raw_subcat.split(' - ', 1)[1].strip()
+					else:
+						product['subcategory'] = raw_subcat
+
 				products.append(product)
+
 		return products
 
 
@@ -979,7 +975,7 @@ class MainWindow(QMainWindow):
 			reply = QMessageBox.question(
 				self,
 				'Actualización disponible',
-				f'Hay una nueva versión de PrecioFacil ({result["version"]}).\n¿Querés actualizar ahora?',
+				f'Hay una nueva versión de PrecioFacil (v{result["version"]}).\n¿Querés actualizar ahora?',
 				QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
 			)
 
@@ -1034,14 +1030,15 @@ class MainWindow(QMainWindow):
 
 		if status == 'success':
 			# Se descargó y se lanzó el instalador, cierro la app
-			sys.exit()
+			QApplication.instance().quit()
 
 		elif status.startswith('error|'):
-			# Hubo un error. Extraigo el texto después de "error|"
 			error_msg = status.split('|')[1]
-
-			# Muestro el mensaje de error
-			QMessageBox.warning(self, 'Error', f'Se interrumpió la descarga.\nDetalle: {error_msg}')
+			QMessageBox.warning(
+				self, 
+				'Error', 
+				f'Se interrumpió la descarga.\nDetalle: {error_msg}'
+			)
 
 			# Recién cuando el usuario aprieta Aceptar, la app sigue
 			self.start_data_processing()
@@ -1181,6 +1178,7 @@ class MainWindow(QMainWindow):
 			'no_access': 'Imposible acceder a',
 			'no_link': 'No se encontró link',
 			'no_download': 'No se pudo descargar',
+			'login_failed': 'Fallo de autenticación en',
 			'local_used': 'Usando lista local previa',
 			'local_missing': 'Lista local no encontrada',
 			'local_error': 'Error al procesar lista'
@@ -1231,7 +1229,7 @@ class MainWindow(QMainWindow):
 					reason_str = maps[reason]
 
 					# Si el problema fue de conexión al proveedor, agrego el nombre del mismo
-					if reason in ('no_url', 'no_access'):
+					if reason in ('no_url', 'no_access', 'login_failed'):
 						supplier_str = f' <i>{brand_to_supplier[brand]}</i>'
 					else:
 						supplier_str = ''
@@ -1328,7 +1326,7 @@ class MainWindow(QMainWindow):
 		"""Distribuye el ancho de las columnas de todas las tablas."""
 
 		tables = (
-			self.tableWidget_search_hh, 
+			self.tableWidget_search_hh,
 			self.tableWidget_defaults_hh,
 			self.tableWidget_search_etma,
 			self.tableWidget_defaults_etma,
@@ -1337,34 +1335,50 @@ class MainWindow(QMainWindow):
 		)
 
 		for table in tables:
-			table.setColumnWidth(0, 110) # fijo
-			table.setColumnWidth(1, 400) # fijo
-			table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch) # ocupa el resto
-			table.setColumnWidth(3, 160) # fijo
+			is_camba = table in (self.tableWidget_search_camba, self.tableWidget_defaults_camba)
+			
+			# Columna 0 (Código): Siempre fija
+			table.setColumnWidth(0, 110)
+			
+			if is_camba:
+				table.setColumnWidth(1, 400) # Columna 1 (Subcategoría): Fija
+				table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch) # Columna 2 (Descripción): Estirada
+				table.setColumnWidth(3, 180) # Columna 3 (Precio): Fija
+			else:
+				table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch) # Columna 1 (Descripción): Estirada
+				table.setColumnWidth(2, 180) # Columna 2 (Precio): Fija
 
 
 	def load_more_used(self, combo_box, all_products, most_used_products):
 		"""Carga los productos más usados."""
 
-		# Muestro texto por defecto en el combo box
 		combo_box.setPlaceholderText('Seleccione una categoría...')
+
+		# Detecto si estoy cargando el combo de HH
+		is_hh = combo_box is self.comboBox_most_used_hh
 
 		# Cargo categorías y sus productos por detrás
 		for category, products_in_category in most_used_products.items():
 			products = []
-			for product_code, product_description in products_in_category.items():
+			for product_code, custom_description in products_in_category.items():
 				# Busco el producto dentro de todos los productos
 				for product in all_products:
-					# if product_code.startswith('CR1024') and product_code != product['code']: # Evita duplicados en este caso particular
-					# 	continue
 					if product_code == product['code']:
-						products.append({
-								'code': product['code'],
-								'subcategory': product['subcategory'],
-								'description': product_description,
-								'price': product['price']
-							}
-						)
+						# Si es HH, ignoro la descripción del diccionario y uso la original
+						desc_to_use = product['description'] if is_hh else custom_description
+
+						prod_dict = {
+							'code': product['code'],
+							'description': desc_to_use,
+							'price': product['price']
+						}
+
+						# Traspaso la subcategoría solo si existe
+						if 'subcategory' in product:
+							prod_dict['subcategory'] = product['subcategory']
+
+						products.append(prod_dict)
+
 			combo_box.addItem(category, products)
 
 		# Establezco que no haya uno seleccionado
@@ -1420,8 +1434,9 @@ class MainWindow(QMainWindow):
 			for product in all_products:
 				match = True
 				for word in query_words:
+					# Uso .get('subcategory', '') por si no existe la clave
 					if (word not in product['code'].lower()
-						and word not in product['subcategory'].lower() 
+						and word not in product.get('subcategory', '').lower() 
 						and word not in product['description'].lower()
 					):
 						match = False
@@ -1435,28 +1450,40 @@ class MainWindow(QMainWindow):
 	def list_products(self, products, table_widget):
 		"""Lista los productos en la tabla correspondiente."""
 
-		# Vacio la tabla y cargo los productos
 		table_widget.setRowCount(0)
+
+		# Detecto si la tabla pertenece a Camba
+		is_camba = table_widget in (self.tableWidget_search_camba, self.tableWidget_defaults_camba)
+
 		for product in products:
 			row = table_widget.rowCount()
 			table_widget.insertRow(row)
 
+			# Columna 0: Siempre el código
 			code_item = QTableWidgetItem(product['code'])
 			table_widget.setItem(row, 0, code_item)
 
-			subcat_item = QTableWidgetItem(product['subcategory'])
-			if table_widget is self.tableWidget_search_camba:
+			# Si es Camba, mapeo 4 columnas. Si no, mapeo 3.
+			if is_camba:
+				subcat_item = QTableWidgetItem(product.get('subcategory', ''))
 				font = subcat_item.font()
-				font.setPointSize(9) # tamaño deseado
+				font.setPointSize(9)
 				subcat_item.setFont(font)
-			table_widget.setItem(row, 1, subcat_item)
+				table_widget.setItem(row, 1, subcat_item)
 
-			descr_item = QTableWidgetItem(product['description'])
-			table_widget.setItem(row, 2, descr_item)
+				descr_item = QTableWidgetItem(product['description'])
+				table_widget.setItem(row, 2, descr_item)
 
-			price_item = QTableWidgetItem(product['price'])
-			price_item.setFont(QFont('Consolas', 12))
-			table_widget.setItem(row, 3, price_item)
+				price_item = QTableWidgetItem(product['price'])
+				price_item.setFont(QFont('Consolas', 12))
+				table_widget.setItem(row, 3, price_item)
+			else:
+				descr_item = QTableWidgetItem(product['description'])
+				table_widget.setItem(row, 1, descr_item) # Pasa a ser columna 1
+
+				price_item = QTableWidgetItem(product['price'])
+				price_item.setFont(QFont('Consolas', 12))
+				table_widget.setItem(row, 2, price_item) # Pasa a ser columna 2
 
 		# Muestro el número de productos listado
 		search_tables = {
