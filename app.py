@@ -9,8 +9,9 @@
 #   | $$     | $$      |  $$$$$$$|  $$$$$$$| $$|  $$$$$$/| $$  |  $$$$$$$|  $$$$$$$| $$| $$   #
 #   |__/     |__/       \_______/ \_______/|__/ \______/ |__/   \_______/ \_______/|__/|__/   #
 #                                                                                             #
-#            Buscador de listas de precios de Tienda del Cardan, Bulonera Camba y             #
-#             Rosario Agro Industrial con actualización automática desde internet             #
+#            Buscador de listas de precios de Tienda del Cardan, Bulonera Camba,              #
+#             Rosario Agro Industrial y VTM Transmisiones, con actualización                  #
+#                                  automática desde internet.                                 #
 #                                                                                             #
 #                      Autor: Angelo Gallardi (angelogallardi@gmail.com)                      #
 #                                                                                             #
@@ -26,6 +27,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import threading
 import winreg
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
@@ -42,6 +44,7 @@ import openpyxl
 import requests
 from dotenv import load_dotenv
 from openpyxl.utils import get_column_letter
+from playwright.sync_api import sync_playwright
 from PyQt6 import uic
 from PyQt6.QtCore import (QLibraryInfo, QObject, Qt, QThread, QTimer,
                           QTranslator, QUrl, pyqtSignal)
@@ -52,10 +55,10 @@ from PyQt6.QtWidgets import (QApplication, QDialog, QHeaderView, QMainWindow,
 # -----------------------
 # Módulos del proyecto
 # -----------------------
-from utils import (CAMBA_SHEETS, CURRENT_VERSION,
+from utils import (BRAND_COUNT, CAMBA_SHEETS, CURRENT_VERSION,
                    MOST_USED_PRODUCTS_CAMBA, MOST_USED_PRODUCTS_ETMA,
-                   MOST_USED_PRODUCTS_HH, REPO_NAME, REPO_OWNER, ROSARIO_URLS,
-                   SETTINGS)
+                   MOST_USED_PRODUCTS_HH, MOST_USED_PRODUCTS_VTM, REPO_NAME,
+                   REPO_OWNER, ROSARIO_URLS, SETTINGS)
 
 
 
@@ -216,13 +219,14 @@ class DataProcessor(QObject):
 			'hh': {'products': [], 'date': ''},
 			'etma': {'products': [], 'date': ''},
 			'camba': {'products': [], 'date': ''},
+			'vtm': {'products': [], 'date': ''},
 			'report': self.report
 		}
 
 		# Calculo puntajes de progreso
 		camba_files = 1 + len(CAMBA_SHEETS) # 1 excel + N pdfs
 		rosario_files = len(ROSARIO_URLS)
-		self.points_per_brand = 25 # 4 marcas
+		self.points_per_brand = 100 // BRAND_COUNT
 		self.points_per_file_camba = self.points_per_brand / camba_files
 		self.points_per_file_rosario = self.points_per_brand / rosario_files
 
@@ -255,6 +259,10 @@ class DataProcessor(QObject):
 		# 3. PROCESO ROSARIO AGRO
 		self.update_progress(0, 'Procesando ROSARIO AGRO...')
 		self.process_rosario_pdfs()
+
+		# 4. PROCESO VTM
+		self.update_progress(0, 'Procesando VTM...')
+		self.process_vtm()
 
 		self.update_progress(100, '¡Carga completada!')
 		self.finished.emit(self.all_data) # Devuelvo datos recolectados al MainWindow
@@ -464,6 +472,74 @@ class DataProcessor(QObject):
 			self.check_local_pdf_list('rosario', pdf_file_path.stem, 'no_download') # paso solo nombre del PDF
 		
 		self.update_progress(self.points_per_file_rosario)
+
+
+	def process_vtm(self):
+		"""Descarga y procesa la lista de VTM usando Playwright en segundo plano."""
+		
+		brand = 'vtm'
+		step_points = self.points_per_brand / 2 # 1=descargar, 2=procesar
+		
+		base_path = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'listas' / brand
+		base_path.mkdir(parents=True, exist_ok=True)
+		excel_file_path = None
+
+		try:			
+			with sync_playwright() as p:
+				browser = p.chromium.launch(headless=True) # headless=True -> no abre ventana de navegador
+				context = browser.new_context(accept_downloads=True)
+				page = context.new_page()
+
+				page.goto('https://vtm-lista.pages.dev/', wait_until='networkidle')
+				page.wait_for_timeout(2000)
+
+				# 1. Abro el combobox "Exportar Excel"
+				toggle = page.locator('button.toolbar-btn-export')
+				toggle.wait_for(state='visible', timeout=10000)
+				toggle.click()
+
+				# Espero a que el menú quede realmente desplegado (aria-expanded="true")
+				page.wait_for_selector("button.toolbar-btn-export[aria-expanded='true']", timeout=5000)
+				page.wait_for_timeout(300) # pequeño margen para animación/render del menú
+
+				# 2. Click en el ítem "Todo el catálogo" dentro del menú
+				boton = page.get_by_role('menuitem', name='Todo el catálogo')
+				boton.wait_for(state='visible', timeout=10000)
+
+				with page.expect_download() as download_info:
+					boton.click()
+				
+				download = download_info.value
+				
+				# Obtengo el nombre original y armo la ruta final
+				original_filename = download.suggested_filename
+				excel_file_path = base_path / original_filename
+				
+				# Borro excel previo de la carpeta
+				for old_excel in base_path.glob('*.xlsx'):
+					old_excel.unlink()
+
+				# Guardo el nuevo archivo con su nombre original
+				download.save_as(excel_file_path)
+				browser.close()
+				
+			self.update_progress(step_points)
+			
+		except Exception as e:
+			# print(f'Error al descargar VTM: {e}')
+			self.check_local_excel_list(brand, 'no_download')
+			self.update_progress(step_points)
+			return
+
+		# Proceso excel descargado
+		try:
+			self.process_excel(excel_file_path, brand)
+		except Exception:
+			self.report.setdefault(brand, {})['excel'] = {
+				'local_status': 'local_error'
+			}
+
+		self.update_progress(step_points)
 
 
 	# FALLBACKS (hubo error y se deben buscar listas locales descargadas previamente)
@@ -731,6 +807,12 @@ class DataProcessor(QObject):
 				'subcategory_col': 'J',
 				'description_col': 'C',
 				'price_col': 'E'
+			},
+			'vtm': {
+				'code_col': 'A',
+				'subcategory_col': 'F',
+				'description_col': 'C',
+				'price_col': 'D'
 			}
 		}
 
@@ -743,11 +825,11 @@ class DataProcessor(QObject):
 		header_row = None
 
 		# Busco la fila de encabezados
-		for row in sheet['A1':'E20']:
+		for row in sheet['A1':'F20']:
 			for cell in row:
 				value = str(cell.value or '').strip().lower()
 
-				if value in ('sku', 'referencia interna'):
+				if value in ('sku', 'referencia interna', 'codigo vtm'):
 					header_row = cell.row
 					code_col = get_column_letter(cell.column)
 					break
@@ -760,9 +842,9 @@ class DataProcessor(QObject):
 			for header_cell in sheet[header_row]:
 				value = str(header_cell.value or '').strip().lower()
 
-				if 'categoría' in value or 'categoria' in value:
+				if 'categoría' in value or 'categoria' in value or 'rubro' in value:
 					subcategory_col = get_column_letter(header_cell.column)
-				elif 'nombre' in value or 'producto' in value:
+				elif 'nombre' in value or 'producto' in value or 'descripcion' in value or 'descripción' in value:
 					description_col = get_column_letter(header_cell.column)
 				elif 'precio' in value:
 					price_col = get_column_letter(header_cell.column)
@@ -805,8 +887,22 @@ class DataProcessor(QObject):
 
 			return '📆 Fecha no disponible'
 
+		# VTM tiene la fecha en las últimas filas
+		if brand == 'vtm':
+			max_r = sheet.max_row
+			min_r = max(1, max_r - 20) # Reviso solo las últimas 20 filas
+			for row in sheet.iter_rows(min_row=min_r, max_row=max_r):
+				for cell in row:
+					value = str(cell.value or '').strip().lower()
+					if 'generado:' in value:
+						match = re.search(r'\d{1,2}[-/]\d{1,2}[-/]\d{4}', value)
+						if match:
+							date = match.group().replace('-', '/')
+							return f'📆 Precios válidos para el: {date}'
+			return '📆 Fecha no encontrada'
+
 		# Para HH o ETMA se busca en las primeras celdas
-		for row in sheet['A1':'E20']:
+		for row in sheet['A1':'F20']:
 			for cell in row:
 				# Evito trabajo innecesario (no analizo celdas vacías)
 				if not cell.value:
@@ -832,22 +928,25 @@ class DataProcessor(QObject):
 		products = []
 		for row in range(first_row, sheet.max_row + 1):
 			if self.is_valid_row(sheet, row, header_cols):
-				# Formateo precios de tipo float (necesario en CAMBA)
+				# Formateo precios de tipo float o int (necesario para VTM y CAMBA)
 				price = sheet[header_cols['price_col'] + str(row)].value
-				if isinstance(price, float):
+
+				if isinstance(price, (float, int)):
 					price = f'{price:,.2f}'.replace('.', '_').replace(',', '.').replace('_', ',')
 
 				# Creo diccionario sin subcategoría
 				product = {
-					'code': sheet[header_cols['code_col'] + str(row)].value,
-					'description': sheet[header_cols['description_col'] + str(row)].value,
+					'code': str(sheet[header_cols['code_col'] + str(row)].value).strip(),
+					'description': str(sheet[header_cols['description_col'] + str(row)].value).strip(),
 					'price': f'$ {price}'
 				}
 
-				# Si es CAMBA, agrego la subcategoría
-				if brand == 'camba' and header_cols['subcategory_col']:
+				# Si es CAMBA o VTM, agrego la subcategoría
+				if brand in ('camba', 'vtm') and header_cols['subcategory_col']:
 					raw_subcat = str(sheet[header_cols['subcategory_col'] + str(row)].value).strip()
-					if ' - ' in raw_subcat:
+
+					# Solo corto el prefijo si la marca es Camba
+					if brand == 'camba' and ' - ' in raw_subcat:
 						product['subcategory'] = raw_subcat.split(' - ', 1)[1].strip()
 					else:
 						product['subcategory'] = raw_subcat
@@ -865,8 +964,12 @@ class DataProcessor(QObject):
 			if col is None:
 				continue
 
-			if sheet[col + str(row)].value is None:
+			val = sheet[col + str(row)].value
+
+			# Verifico que no sea None y que no sea un string vacío o con espacios
+			if val is None or str(val).strip() == '':
 				return False
+
 		return True
 
 
@@ -877,6 +980,12 @@ class MainWindow(QMainWindow):
 
 		# Cargo la UI
 		uic.loadUi('ui/app.ui', self)
+
+		# Título de la ventaba
+		self.setWindowTitle(f'PrecioFacil {CURRENT_VERSION}')
+
+		# Establezco la pestaña de Camba como la inicial
+		self.tabWidget.setCurrentIndex(3)
 
 		# Señales de pushbuttons inferiores
 		self.pushButton_theme.clicked.connect(self.change_theme)
@@ -930,15 +1039,28 @@ class MainWindow(QMainWindow):
 		self.comboBox_most_used_hh.activated.connect(self.load_category)
 		self.comboBox_most_used_etma.activated.connect(self.load_category)
 		self.comboBox_most_used_camba.activated.connect(self.load_category)
+		self.comboBox_most_used_vtm.activated.connect(self.load_category)
 
 		# Señales de lineedits
 		self.lineEdit_search_hh.textEdited.connect(self.filter_products)
 		self.lineEdit_search_etma.textEdited.connect(self.filter_products)
 		self.lineEdit_search_camba.textEdited.connect(self.filter_products)
+		self.lineEdit_search_vtm.textEdited.connect(self.filter_products)
+
+		# Señales para abrir catálogo de TDC con doble clic
+		self.tableWidget_search_hh.itemDoubleClicked.connect(self.open_tdc_catalog)
+		self.tableWidget_defaults_hh.itemDoubleClicked.connect(self.open_tdc_catalog)
+		self.tableWidget_search_etma.itemDoubleClicked.connect(self.open_tdc_catalog)
+		self.tableWidget_defaults_etma.itemDoubleClicked.connect(self.open_tdc_catalog)
+
+		# Señales para abrir catálogo de VTM con doble clic
+		self.tableWidget_search_vtm.itemDoubleClicked.connect(self.open_vtm_catalog)
+		self.tableWidget_defaults_vtm.itemDoubleClicked.connect(self.open_vtm_catalog)
 
 		# Configuraciones visuales varias
 		self.format_headers() # Configuro headers de tablas
-		self.apply_theme('light') # Tema claro por defecto
+		self.initialize_theme()
+		# self.apply_theme('light') # Tema claro por defecto
 		self.showMaximized() # Ventana maximizada
 
 		# Comienzo comprobando actualizaciones
@@ -1093,6 +1215,7 @@ class MainWindow(QMainWindow):
 		self.all_products_hh = final_data['hh']['products']
 		self.all_products_etma = final_data['etma']['products']
 		self.all_products_camba = final_data['camba']['products']
+		self.all_products_vtm = final_data['vtm']['products']
 		self.report = final_data['report']
 
 		# Mapeo de marcas a sus correspondientes elementos
@@ -1117,6 +1240,13 @@ class MainWindow(QMainWindow):
 				'table': self.tableWidget_search_camba,
 				'combo': self.comboBox_most_used_camba,
 				'most': MOST_USED_PRODUCTS_CAMBA
+			},
+			'vtm': {
+				'products': self.all_products_vtm,
+				'label': self.label_validity_date_vtm,
+				'table': self.tableWidget_search_vtm,
+				'combo': self.comboBox_most_used_vtm,
+				'most': MOST_USED_PRODUCTS_VTM
 			}
 		}
 
@@ -1188,7 +1318,8 @@ class MainWindow(QMainWindow):
 			'hh': 'Tienda del Cardan',
 			'etma': 'Tienda del Cardan',
 			'camba': 'Bulonera Camba',
-			'rosario': 'Rosario Agro'
+			'rosario': 'Rosario Agro',
+			'vtm': 'VTM Transmisiones'
 		}
 		
 		msg = ''
@@ -1297,10 +1428,29 @@ class MainWindow(QMainWindow):
 		return msg
 
 
+	def initialize_theme(self):
+		"""Determina y aplica el tema inicial."""
+
+		# Recupero tema guardado (si lo hay)
+		saved_theme = SETTINGS.value('theme', '', type=str)
+
+		if saved_theme in ('dark', 'light'):
+			initial_theme = saved_theme
+		else:
+			# Detecto esquema de color actual del sistema
+			color_scheme = QApplication.instance().styleHints().colorScheme()
+			initial_theme = 'dark' if color_scheme == Qt.ColorScheme.Dark else 'light'
+
+		self.apply_theme(initial_theme)
+
+
 	def apply_theme(self, theme):
 		"""Aplica el tema y cambia los iconos en función del tema."""
 
 		app = QApplication.instance()
+
+		# Guardo en QSettings el tema aplicado
+		SETTINGS.setValue('theme', theme)
 
 		# Cambio esquema de color de la app
 		if theme == 'dark':
@@ -1317,8 +1467,8 @@ class MainWindow(QMainWindow):
 	def change_theme(self):
 		"""Invierte el tema actual."""
 
-		current_theme = QApplication.instance().styleHints().colorScheme()
-		new_theme ='light' if current_theme == Qt.ColorScheme.Dark else 'dark'
+		current_theme = SETTINGS.value('theme', type=str)
+		new_theme ='light' if current_theme == 'dark' else 'dark'
 		self.apply_theme(new_theme)
 
 
@@ -1331,16 +1481,22 @@ class MainWindow(QMainWindow):
 			self.tableWidget_search_etma,
 			self.tableWidget_defaults_etma,
 			self.tableWidget_search_camba,
-			self.tableWidget_defaults_camba
+			self.tableWidget_defaults_camba,
+			self.tableWidget_search_vtm,
+			self.tableWidget_defaults_vtm
 		)
 
 		for table in tables:
-			is_camba = table in (self.tableWidget_search_camba, self.tableWidget_defaults_camba)
+			is_4_cols = table in (
+				self.tableWidget_search_camba, 
+				self.tableWidget_defaults_camba, 
+				self.tableWidget_search_vtm, 
+				self.tableWidget_defaults_vtm)
 			
 			# Columna 0 (Código): Siempre fija
 			table.setColumnWidth(0, 110)
 			
-			if is_camba:
+			if is_4_cols:
 				table.setColumnWidth(1, 400) # Columna 1 (Subcategoría): Fija
 				table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch) # Columna 2 (Descripción): Estirada
 				table.setColumnWidth(3, 180) # Columna 3 (Precio): Fija
@@ -1396,9 +1552,12 @@ class MainWindow(QMainWindow):
 		elif sender is self.comboBox_most_used_etma:
 			table_widget = self.tableWidget_defaults_etma
 			combo_box = self.comboBox_most_used_etma
-		else:
+		elif sender is self.comboBox_most_used_camba:
 			table_widget = self.tableWidget_defaults_camba
 			combo_box = self.comboBox_most_used_camba
+		else:
+			table_widget = self.tableWidget_defaults_vtm
+			combo_box = self.comboBox_most_used_vtm
 
 		# Vacio la tabla y listo los productos
 		table_widget.setRowCount(0)
@@ -1417,9 +1576,12 @@ class MainWindow(QMainWindow):
 		elif sender is self.lineEdit_search_etma:
 			table_widget = self.tableWidget_search_etma
 			all_products = self.all_products_etma
-		else:
+		elif sender is self.lineEdit_search_camba:
 			table_widget = self.tableWidget_search_camba
 			all_products = self.all_products_camba
+		else:
+			table_widget = self.tableWidget_search_vtm
+			all_products = self.all_products_vtm
 
 		# Evito lógica innecesaria si no se cargaron productos en la marca
 		if not all_products:
@@ -1452,8 +1614,12 @@ class MainWindow(QMainWindow):
 
 		table_widget.setRowCount(0)
 
-		# Detecto si la tabla pertenece a Camba
-		is_camba = table_widget in (self.tableWidget_search_camba, self.tableWidget_defaults_camba)
+		# Detecto si la tabla tiene 4 columnas
+		is_4_cols = table_widget in (
+				self.tableWidget_search_camba, 
+				self.tableWidget_defaults_camba, 
+				self.tableWidget_search_vtm, 
+				self.tableWidget_defaults_vtm)
 
 		for product in products:
 			row = table_widget.rowCount()
@@ -1463,12 +1629,9 @@ class MainWindow(QMainWindow):
 			code_item = QTableWidgetItem(product['code'])
 			table_widget.setItem(row, 0, code_item)
 
-			# Si es Camba, mapeo 4 columnas. Si no, mapeo 3.
-			if is_camba:
+			# Si es Camba o VTM, mapeo 4 columnas. Si no, mapeo 3.
+			if is_4_cols:
 				subcat_item = QTableWidgetItem(product.get('subcategory', ''))
-				font = subcat_item.font()
-				font.setPointSize(9)
-				subcat_item.setFont(font)
 				table_widget.setItem(row, 1, subcat_item)
 
 				descr_item = QTableWidgetItem(product['description'])
@@ -1490,9 +1653,11 @@ class MainWindow(QMainWindow):
 			self.tableWidget_search_hh: self.label_search_hh,
 			self.tableWidget_search_etma: self.label_search_etma,
 			self.tableWidget_search_camba: self.label_search_camba,
+			self.tableWidget_search_vtm: self.label_search_vtm,
 			self.tableWidget_defaults_hh: self.label_most_used_hh,
 			self.tableWidget_defaults_etma: self.label_most_used_etma,
 			self.tableWidget_defaults_camba: self.label_most_used_camba,
+			self.tableWidget_defaults_vtm: self.label_most_used_vtm,
 		}
 		quantity = len(products)
 		s = '' if quantity == 1 else 's'
@@ -1507,18 +1672,23 @@ class MainWindow(QMainWindow):
 			self.lineEdit_search_hh,
 			self.lineEdit_search_etma,
 			self.lineEdit_search_camba,
+			self.lineEdit_search_vtm,
 			self.label_search_hh,
 			self.label_search_etma,
 			self.label_search_camba,
+			self.label_search_vtm,
 			self.label_most_used_hh,
 			self.label_most_used_etma,
 			self.label_most_used_camba,
+			self.label_most_used_vtm,
 			self.label_validity_date_hh,
 			self.label_validity_date_etma,
 			self.label_validity_date_camba,
+			self.label_validity_date_vtm,
 			self.comboBox_most_used_hh,
 			self.comboBox_most_used_etma,
-			self.comboBox_most_used_camba
+			self.comboBox_most_used_camba,
+			self.comboBox_most_used_vtm
 		}
 
 		tables = (
@@ -1527,7 +1697,9 @@ class MainWindow(QMainWindow):
 			self.tableWidget_search_etma,
 			self.tableWidget_defaults_etma,
 			self.tableWidget_search_camba,
-			self.tableWidget_defaults_camba
+			self.tableWidget_defaults_camba,
+			self.tableWidget_search_vtm,
+			self.tableWidget_defaults_vtm
 		)
 
 		for widget in widgets:
@@ -1640,6 +1812,199 @@ class MainWindow(QMainWindow):
 			return None
 
 
+	def open_tdc_catalog(self, item):
+		"""Abre el catálogo web forzando el inicio de sesión previo para obtener precios B2B."""
+		
+		# 1. Extraigo el SKU de la tabla
+		table = self.sender() 
+		row = item.row()
+		sku_item = table.item(row, 0)
+		
+		if not sku_item:
+			return
+		sku = sku_item.text()
+
+		# 2. Obtengo credenciales y el navegador predeterminado
+		email = os.getenv('USER_EMAIL')
+		password = os.getenv('USER_PASSWORD')
+		default_browser = self.get_default_browser_exe()
+
+		# Función interna que ejecutará Playwright en segundo plano
+		def run_playwright():
+			with sync_playwright() as p:
+				user_data_dir = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'BrowserProfile'
+				
+				is_new_browser = False
+				
+				try:
+					# 1. Intento conectarnos a un navegador que ya esté abierto
+					browser = p.chromium.connect_over_cdp('http://localhost:9222')
+					context = browser.contexts[0]
+					page = context.new_page()
+				except Exception:
+					# 2. Si falla, lo lanzo de cero
+					launch_args = {
+						'user_data_dir': user_data_dir,
+						'headless': False,
+						'args': ['--start-maximized', '--remote-debugging-port=9222'],
+						'no_viewport': True
+					}
+
+					if default_browser:
+						launch_args['executable_path'] = default_browser
+					else:
+						launch_args['channel'] = 'chrome' 
+
+					try:
+						context = p.chromium.launch_persistent_context(**launch_args)
+						page = context.pages[0]
+						is_new_browser = True
+					except Exception as e:
+						print(f'Error al lanzar el navegador: {e}')
+						return
+				
+				# --- PASO 1: IR DIRECTAMENTE AL PRODUCTO ---
+				product_url = f'https://app.tiendadecardan.com.ar/catalogo/{sku}'
+				page.goto(product_url)
+
+				try:
+					# Esperamos a que la página cargue para que el botón exista en el HTML
+					page.wait_for_load_state('networkidle', timeout=5000)
+				except:
+					pass
+
+				# --- PASO 2: VERIFICAR SI FALTA LOGUEO ---
+				# Uso .first para evitar el error de "strict mode" si hay varios botones de login
+				login_btn = page.locator('a[href="/login"]').first
+				
+				if login_btn.is_visible():
+					try:
+						# Hago clic en el botón para ir a la pantalla de login
+						login_btn.click()
+						
+						# Relleno el formulario
+						page.wait_for_selector('input[type="email"]', timeout=5000)
+						page.fill('input[type="email"]', email)
+						page.fill('input[type="password"]', password)
+						page.press('input[type="password"]', 'Enter')
+						
+						# Esperamos la redirección automática que hace la página
+						page.wait_for_url('**/catalogo*', timeout=15000)
+						
+						# Vuelvo a cargar el producto, ahora con el descuento aplicado
+						page.goto(product_url)
+					except Exception as e:
+						print(f'Error en el proceso de auto-login: {e}')
+
+				# --- FINALIZAR ---
+				try:
+					page.wait_for_event('close', timeout=0)
+				except:
+					pass
+
+		# Ejecuto Playwright en un hilo separado
+		threading.Thread(target=run_playwright, daemon=True).start()
+
+
+	def open_vtm_catalog(self, item):
+		"""Abre el catálogo web de VTM usando Playwright en el NAVEGADOR PREDETERMINADO."""
+		
+		# 1. Extraigo el SKU de la tabla (igual que para TDC)
+		table = self.sender() 
+		row = item.row()
+		sku_item = table.item(row, 0)
+		
+		if not sku_item:
+			return
+		sku = sku_item.text()
+
+		# 2. Obtengo la ruta del ejecutable del navegador PREDETERMINADO del sistema
+		default_browser_exe = self.get_default_browser_exe()
+
+		# Función interna que ejecutará Playwright en segundo plano
+		def run_playwright():
+			from playwright.sync_api import sync_playwright
+			import os
+			from pathlib import Path
+			
+			with sync_playwright() as p:
+				# Carpeta de perfil persistente (aislada para evitar bloqueos)
+				user_data_dir = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'BrowserProfile'
+				
+				# Bandera para saber si lanzamos el navegador o abrimos pestaña
+				is_new_browser = False
+				
+				try:
+					# 1. Intentamos conectarnos a un navegador que ya esté abierto (CDP)
+					# Si esto funciona, VTM se abre en una pestaña nueva rapidísimo.
+					browser = p.chromium.connect_over_cdp('http://localhost:9222')
+					context = browser.contexts[0]
+					page = context.new_page()
+					
+				except Exception:
+					# 2. Si falla, el navegador estaba cerrado. Lo lanzamos de cero.
+					# VTM no requiere login, pero usar el perfil persistente y el puerto 9222
+					# es fundamental para que el segundo doble clic abra una pestaña.
+					launch_args = {
+						'user_data_dir': user_data_dir,
+						'headless': False,
+						'args': [
+							'--start-maximized', 
+							'--remote-debugging-port=9222' # <-- Abrimos el canal para futuras conexiones
+						],
+						'no_viewport': True
+					}
+
+					# --- AQUÍ ESTÁ LA CLAVE ---
+					# Si encontramos tu navegador predeterminado, se lo pasamos a Playwright
+					if default_browser_exe:
+						launch_args['executable_path'] = default_browser_exe
+					
+					try:
+						# Lanzamos el perfil persistente usando el ejecutable indicado
+						context = p.chromium.launch_persistent_context(**launch_args)
+						# Usamos la primera pestaña que se abre automáticamente
+						page = context.pages[0]
+						is_new_browser = True
+					except Exception as e:
+						print(f"Error al lanzar el navegador predeterminado para VTM: {e}")
+						return
+				
+				# --- PASO 1: NAVEGAR A LA PÁGINA DEL CATÁLOGO ---
+				# Dado que VTM no tiene URLs directas por SKU y no requiere login,
+				# vamos a la raíz de la lista.
+				page.goto('https://vtm-lista.pages.dev/')
+
+				# --- PASO 2: BUSCAR EL PRODUCTO ---
+				try:
+					# Esperamos a que el buscador (identificado por su clase CSS) esté visible
+					# El usuario proporcionó el selector: input.toolbar-search-input
+					search_input = page.locator('input.toolbar-search-input')
+					search_input.wait_for(state='visible', timeout=10000)
+					
+					# Rellenamos el SKU del producto
+					search_input.fill(sku)
+					
+					# Presionamos "Enter" para buscar
+					page.press('input.toolbar-search-input', 'Enter')
+					
+					# IMPORTANTE: Mantenemos vivo el hilo principal del navegador si lo lanzamos de cero.
+					# Si solo abrimos una pestaña (connect_over_cdp), el hilo principal ya existe
+					# en la otra ventana y no necesitamos esperar aquí.
+					if is_new_browser:
+						page.wait_for_event('close', timeout=0)
+						
+				except Exception as e:
+					print(f"Error al buscar el producto en VTM: {e}")
+					# Mantenemos vivo el hilo si lo lanzamos de cero
+					if is_new_browser:
+						page.wait_for_event('close', timeout=0)
+
+		# Ejecuto Playwright en un hilo separado
+		import threading
+		threading.Thread(target=run_playwright, daemon=True).start()
+
+
 	def open_config(self):
 		"""Abre un dialog para editar la configuración."""
 
@@ -1647,7 +2012,7 @@ class MainWindow(QMainWindow):
 		dialog.exec()
 
 		# Verifico si recargar
-		if dialog.new_supplier_urls:
+		if dialog.new_supplier_url:
 			self.start_data_processing()
 
 
@@ -1668,8 +2033,8 @@ class ConfigurationDialog(QDialog):
 
 		self.load_config()
 
-		# Defino variables
-		self.new_supplier_urls = False # Flag para recargar al cerrar dialog
+		# Flag para recargar al cerrar dialog
+		self.new_supplier_url = False
 
 		# Conecto señales
 		self.pushButton_ok.clicked.connect(self.save_config)
@@ -1677,14 +2042,12 @@ class ConfigurationDialog(QDialog):
 
 
 	def load_config(self):
-		self.lineEdit_url_tdc.setText(SETTINGS.value('supplier_urls/tdc', '', type=str))
 		self.lineEdit_url_camba.setText(SETTINGS.value('supplier_urls/camba', '', type=str))
 
 
 	def save_config(self):
-		SETTINGS.setValue('supplier_urls/tdc', self.lineEdit_url_tdc.text())
 		SETTINGS.setValue('supplier_urls/camba', self.lineEdit_url_camba.text())
-		self.new_supplier_urls = True # Para recargar al cerrar configuración
+		self.new_supplier_url = True # Para recargar al cerrar configuración
 		self.close()
 
 

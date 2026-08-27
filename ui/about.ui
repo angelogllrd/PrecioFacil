@@ -89,7 +89,7 @@
        <item>
         <widget class="QLabel" name="label_4">
          <property name="text">
-          <string>Buscador de listas de precios de Tienda del Cardan, Bulonera Camba y Rosario Agro Industrial con actualización automática desde internet.</string>
+          <string>Buscador de listas de precios de Tienda del Cardan, Bulonera Camba, Rosario Agro Industrial y VTM Transmisiones, con actualización automática desde internet.</string>
          </property>
          <property name="wordWrap">
           <bool>true</bool>
@@ -101,8 +101,8 @@
          <property name="font">
           <font>
            <pointsize>9</pointsize>
-           <italic>true</italic>
-           <bold>false</bold>
+           <italic>false</italic>
+           <bold>true</bold>
            <underline>false</underline>
           </font>
          </property>
