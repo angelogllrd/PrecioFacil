@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1003</width>
+    <width>1035</width>
     <height>826</height>
    </rect>
   </property>
@@ -143,7 +143,7 @@
        </font>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>5</number>
       </property>
       <property name="iconSize">
        <size>
@@ -194,8 +194,8 @@
               <widget class="QLabel" name="label_search_hh">
                <property name="font">
                 <font>
-                 <pointsize>11</pointsize>
-                 <bold>false</bold>
+                 <pointsize>10</pointsize>
+                 <bold>true</bold>
                 </font>
                </property>
                <property name="text">
@@ -375,8 +375,8 @@
               <widget class="QLabel" name="label_most_used_hh">
                <property name="font">
                 <font>
-                 <pointsize>11</pointsize>
-                 <bold>false</bold>
+                 <pointsize>10</pointsize>
+                 <bold>true</bold>
                 </font>
                </property>
                <property name="text">
@@ -476,8 +476,8 @@
               <widget class="QLabel" name="label_search_etma">
                <property name="font">
                 <font>
-                 <pointsize>11</pointsize>
-                 <bold>false</bold>
+                 <pointsize>10</pointsize>
+                 <bold>true</bold>
                 </font>
                </property>
                <property name="text">
@@ -657,8 +657,8 @@
               <widget class="QLabel" name="label_most_used_etma">
                <property name="font">
                 <font>
-                 <pointsize>11</pointsize>
-                 <bold>false</bold>
+                 <pointsize>10</pointsize>
+                 <bold>true</bold>
                 </font>
                </property>
                <property name="text">
@@ -742,8 +742,8 @@
               <widget class="QLabel" name="label_search_vtm">
                <property name="font">
                 <font>
-                 <pointsize>11</pointsize>
-                 <bold>false</bold>
+                 <pointsize>10</pointsize>
+                 <bold>true</bold>
                 </font>
                </property>
                <property name="text">
@@ -855,8 +855,8 @@
               <widget class="QLabel" name="label_most_used_vtm">
                <property name="font">
                 <font>
-                 <pointsize>11</pointsize>
-                 <bold>false</bold>
+                 <pointsize>10</pointsize>
+                 <bold>true</bold>
                 </font>
                </property>
                <property name="text">
@@ -1131,8 +1131,8 @@
                 <widget class="QLabel" name="label_search_camba">
                  <property name="font">
                   <font>
-                   <pointsize>11</pointsize>
-                   <bold>false</bold>
+                   <pointsize>10</pointsize>
+                   <bold>true</bold>
                   </font>
                  </property>
                  <property name="text">
@@ -1264,8 +1264,8 @@
                 <widget class="QLabel" name="label_most_used_camba">
                  <property name="font">
                   <font>
-                   <pointsize>11</pointsize>
-                   <bold>false</bold>
+                   <pointsize>10</pointsize>
+                   <bold>true</bold>
                   </font>
                  </property>
                  <property name="text">
@@ -1779,7 +1779,7 @@
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="tab">
+      <widget class="QWidget" name="tab_rosario">
        <attribute name="icon">
         <iconset>
          <normaloff>../resources/img/brands/rosario.png</normaloff>../resources/img/brands/rosario.png</iconset>
@@ -1991,6 +1991,208 @@
             <height>80</height>
            </size>
           </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_fans">
+       <attribute name="icon">
+        <iconset>
+         <normaloff>../resources/img/brands/vent.png</normaloff>../resources/img/brands/vent.png</iconset>
+       </attribute>
+       <attribute name="title">
+        <string/>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_16">
+        <item row="0" column="0">
+         <widget class="QTableWidget" name="tableWidget_fans">
+          <property name="focusPolicy">
+           <enum>Qt::FocusPolicy::NoFocus</enum>
+          </property>
+          <property name="editTriggers">
+           <set>QAbstractItemView::EditTrigger::AllEditTriggers</set>
+          </property>
+          <property name="selectionMode">
+           <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
+          </property>
+          <property name="rowCount">
+           <number>12</number>
+          </property>
+          <attribute name="verticalHeaderVisible">
+           <bool>false</bool>
+          </attribute>
+          <row/>
+          <row/>
+          <row/>
+          <row/>
+          <row/>
+          <row/>
+          <row/>
+          <row/>
+          <row/>
+          <row/>
+          <row/>
+          <row/>
+          <column>
+           <property name="text">
+            <string>Ø EXTERIOR</string>
+           </property>
+           <property name="font">
+            <font>
+             <pointsize>11</pointsize>
+             <bold>true</bold>
+            </font>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string/>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>PRECIO US$</string>
+           </property>
+           <property name="font">
+            <font>
+             <pointsize>11</pointsize>
+             <bold>true</bold>
+            </font>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>PRECIO HERRERA $</string>
+           </property>
+           <property name="font">
+            <font>
+             <pointsize>11</pointsize>
+             <bold>true</bold>
+            </font>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>FECHA HERRERA</string>
+           </property>
+           <property name="font">
+            <font>
+             <pointsize>11</pointsize>
+             <bold>true</bold>
+            </font>
+           </property>
+          </column>
+          <item row="0" column="0">
+           <property name="text">
+            <string>100 mm</string>
+           </property>
+           <property name="flags">
+            <set>ItemIsDragEnabled|ItemIsDropEnabled|ItemIsUserCheckable|ItemIsEnabled</set>
+           </property>
+          </item>
+          <item row="1" column="0">
+           <property name="text">
+            <string>120 mm</string>
+           </property>
+           <property name="flags">
+            <set>ItemIsDragEnabled|ItemIsDropEnabled|ItemIsUserCheckable|ItemIsEnabled</set>
+           </property>
+          </item>
+          <item row="2" column="0">
+           <property name="text">
+            <string>135 mm</string>
+           </property>
+           <property name="flags">
+            <set>ItemIsDragEnabled|ItemIsDropEnabled|ItemIsUserCheckable|ItemIsEnabled</set>
+           </property>
+          </item>
+          <item row="3" column="0">
+           <property name="text">
+            <string>145 mm</string>
+           </property>
+           <property name="flags">
+            <set>ItemIsDragEnabled|ItemIsDropEnabled|ItemIsUserCheckable|ItemIsEnabled</set>
+           </property>
+          </item>
+          <item row="4" column="0">
+           <property name="text">
+            <string>165 mm</string>
+           </property>
+           <property name="flags">
+            <set>ItemIsDragEnabled|ItemIsDropEnabled|ItemIsUserCheckable|ItemIsEnabled</set>
+           </property>
+          </item>
+          <item row="5" column="0">
+           <property name="text">
+            <string>195 mm</string>
+           </property>
+           <property name="flags">
+            <set>ItemIsDragEnabled|ItemIsDropEnabled|ItemIsUserCheckable|ItemIsEnabled</set>
+           </property>
+          </item>
+          <item row="6" column="0">
+           <property name="text">
+            <string>200 mm</string>
+           </property>
+           <property name="flags">
+            <set>ItemIsDragEnabled|ItemIsDropEnabled|ItemIsUserCheckable|ItemIsEnabled</set>
+           </property>
+          </item>
+          <item row="7" column="0">
+           <property name="text">
+            <string>230 mm</string>
+           </property>
+           <property name="flags">
+            <set>ItemIsDragEnabled|ItemIsDropEnabled|ItemIsUserCheckable|ItemIsEnabled</set>
+           </property>
+          </item>
+          <item row="8" column="0">
+           <property name="text">
+            <string>270 mm</string>
+           </property>
+           <property name="flags">
+            <set>ItemIsDragEnabled|ItemIsDropEnabled|ItemIsUserCheckable|ItemIsEnabled</set>
+           </property>
+          </item>
+          <item row="9" column="0">
+           <property name="text">
+            <string>180 mm</string>
+           </property>
+           <property name="flags">
+            <set>ItemIsDragEnabled|ItemIsDropEnabled|ItemIsUserCheckable|ItemIsEnabled</set>
+           </property>
+          </item>
+          <item row="9" column="1">
+           <property name="text">
+            <string>(Telares - Bombé) de 12 palas - Cod. Nro. 21702689041 (eje 30, chav. 6)</string>
+           </property>
+          </item>
+          <item row="10" column="0">
+           <property name="text">
+            <string>200 mm</string>
+           </property>
+           <property name="flags">
+            <set>ItemIsDragEnabled|ItemIsDropEnabled|ItemIsUserCheckable|ItemIsEnabled</set>
+           </property>
+          </item>
+          <item row="10" column="1">
+           <property name="text">
+            <string>(Telares ) de 11 palas Cod. Nro. 21701651054 (eje 28 - chav 8)</string>
+           </property>
+          </item>
+          <item row="11" column="0">
+           <property name="text">
+            <string>95 mm</string>
+           </property>
+           <property name="flags">
+            <set>ItemIsDragEnabled|ItemIsDropEnabled|ItemIsUserCheckable|ItemIsEnabled</set>
+           </property>
+          </item>
+          <item row="11" column="1">
+           <property name="text">
+            <string>Ventilador chiquito de 12 palas</string>
+           </property>
+          </item>
          </widget>
         </item>
        </layout>

@@ -1,9 +1,19 @@
+import os
+import winreg
+from pathlib import Path
+
 from PyQt6.QtCore import QSettings
 
 
 CURRENT_VERSION = '1.2.0'
 REPO_OWNER = 'angelogllrd'
 REPO_NAME = 'PrecioFacil'
+
+# Definición de rutas
+APP_DATA_DIR = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil'
+LISTS_DIR    = APP_DATA_DIR / 'listas'
+DB_DIR       = APP_DATA_DIR / 'database'
+DB_PATH      = DB_DIR / 'database.db'
 
 
 BRAND_COUNT = 5 # ETMA, HH, CAMBA, ROSARIO AGRO, VTM
@@ -2384,5 +2394,28 @@ MOST_USED_PRODUCTS_VTM = {
 }
 
 
+def get_default_browser_exe():
+    """
+    Consulta el Registro de Windows para obtener el ejecutable del navegador 
+    web predeterminado.
+    """
 
+    try:
+        # Busco qué programa maneja los links de internet (HTTP)
+        reg_url = r'Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice'
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, reg_url) as key:
+            prog_id = winreg.QueryValueEx(key, 'ProgId')[0]
+
+        # Busco la ruta del ejecutable para ese programa
+        reg_cmd = rf'{prog_id}\shell\open\command'
+        with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, reg_cmd) as key:
+            command = winreg.QueryValueEx(key, '')[0]
+
+        # Limpio la ruta para tener la ruta "pura" del ejecutable, sin parámetros
+        if command.startswith('"'):
+            return command.split('"')[1]
+        else:
+            return command.split(' ')[0]
+    except Exception:
+        return None
 

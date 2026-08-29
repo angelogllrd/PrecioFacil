@@ -24,6 +24,7 @@
 # -----------------------
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -44,22 +45,22 @@ import openpyxl
 import requests
 from dotenv import load_dotenv
 from openpyxl.utils import get_column_letter
-from playwright.sync_api import sync_playwright
 from PyQt6 import uic
-from PyQt6.QtCore import (QLibraryInfo, QObject, Qt, QThread, QTimer,
-                          QTranslator, QUrl, pyqtSignal)
-from PyQt6.QtGui import QDesktopServices, QFont, QIcon
+from PyQt6.QtCore import (QLibraryInfo, QObject, Qt, QThread, QTranslator,
+                          QUrl, pyqtSignal)
+from PyQt6.QtGui import QColor, QDesktopServices, QFont, QIcon, QPen
 from PyQt6.QtWidgets import (QApplication, QDialog, QHeaderView, QMainWindow,
-                             QMessageBox, QTableWidget, QTableWidgetItem)
+                             QMessageBox, QStyledItemDelegate,
+                             QTableWidgetItem)
 
 # -----------------------
 # Módulos del proyecto
 # -----------------------
-from utils import (BRAND_COUNT, CAMBA_SHEETS, CURRENT_VERSION,
-                   MOST_USED_PRODUCTS_CAMBA, MOST_USED_PRODUCTS_ETMA,
-                   MOST_USED_PRODUCTS_HH, MOST_USED_PRODUCTS_VTM, REPO_NAME,
-                   REPO_OWNER, ROSARIO_URLS, SETTINGS)
-
+from utils import (APP_DATA_DIR, BRAND_COUNT, CAMBA_SHEETS, CURRENT_VERSION,
+                   DB_DIR, DB_PATH, LISTS_DIR, MOST_USED_PRODUCTS_CAMBA,
+                   MOST_USED_PRODUCTS_ETMA, MOST_USED_PRODUCTS_HH,
+                   MOST_USED_PRODUCTS_VTM, REPO_NAME, REPO_OWNER, ROSARIO_URLS,
+                   SETTINGS, get_default_browser_exe)
 
 
 
@@ -381,7 +382,7 @@ class DataProcessor(QObject):
 		"""Inicia la descarga paralela de los PDFs de CAMBA encontrados en el soup."""
 
 		# Construyo ruta de la carpeta destino
-		base_path = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'listas' / 'camba'
+		base_path = LISTS_DIR / 'camba'
 		base_path.mkdir(parents=True, exist_ok=True)
 
 		with ThreadPoolExecutor(max_workers=5) as executor:
@@ -441,7 +442,7 @@ class DataProcessor(QObject):
 	def process_rosario_pdfs(self):
 		"""Inicia la descarga paralela de los PDFs de ROSARIO AGRO."""
 
-		base_path = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'listas' / 'rosario'
+		base_path = LISTS_DIR / 'rosario'
 		base_path.mkdir(parents=True, exist_ok=True)
 
 		with ThreadPoolExecutor(max_workers=5) as executor:
@@ -480,13 +481,25 @@ class DataProcessor(QObject):
 		brand = 'vtm'
 		step_points = self.points_per_brand / 2 # 1=descargar, 2=procesar
 		
-		base_path = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'listas' / brand
+		base_path = LISTS_DIR / brand
 		base_path.mkdir(parents=True, exist_ok=True)
 		excel_file_path = None
 
-		try:			
+		try:
+			from playwright.sync_api import sync_playwright
+
 			with sync_playwright() as p:
-				browser = p.chromium.launch(headless=True) # headless=True -> no abre ventana de navegador
+				launch_args = {'headless': True}
+				
+				# Busco el navegador predeterminado para no depender del Chromium interno
+				browser_exe = get_default_browser_exe()
+				if browser_exe:
+					launch_args['executable_path'] = browser_exe
+				else:
+					# Fallback seguro para Windows: usa Edge si no encuentra el predeterminado
+					launch_args['channel'] = 'msedge' 
+
+				browser = p.chromium.launch(**launch_args)
 				context = browser.new_context(accept_downloads=True)
 				page = context.new_page()
 
@@ -576,7 +589,7 @@ class DataProcessor(QObject):
 		Comprueba si existe un excel local previamente descargado y lo procesa.
 		"""
 
-		base_path = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'listas' / brand
+		base_path = LISTS_DIR / brand
 		excel_file_path = None
 
 		if base_path.exists():
@@ -606,7 +619,7 @@ class DataProcessor(QObject):
 		* Para ROSARIO: identifier es el nombre del archivo (ej: 'Cuchillas_Jardin')
 		"""
 
-		base_path = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'listas' / brand
+		base_path = LISTS_DIR / brand
 		has_local = False
 
 		if base_path.exists():
@@ -662,7 +675,7 @@ class DataProcessor(QObject):
 		"""Descarga el excel en la carpeta correspondiente."""
 
 		# Construyo ruta de la carpeta destino
-		base_path = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'listas' / brand
+		base_path = LISTS_DIR / brand
 		base_path.mkdir(parents=True, exist_ok=True)
 
 		# 1. Configuro los encabezados dinámicamente según la marca
@@ -974,6 +987,49 @@ class DataProcessor(QObject):
 
 
 
+class ThickGridDelegate(QStyledItemDelegate):
+	"""
+	Delegado de tabla que superpone un trazo más grueso en los bordes de filas y
+	columnas específicas, preservando la apariencia base.
+	"""
+
+	def __init__(self, target_rows=(), target_cols=(), parent=None):
+		super().__init__(parent)
+		self.target_rows = target_rows
+		self.target_cols = target_cols
+
+
+	def set_line_color(self, hex_color):
+		"""Actualiza el color dinámicamente cuando cambia el tema."""
+		self.line_color = QColor(hex_color)
+
+
+	def paint(self, painter, option, index):
+		# 1. Dibujo el contenido normal de la celda primero
+		super().paint(painter, option, index)
+
+		is_target_row = index.row() in self.target_rows
+		is_target_col = index.column() in self.target_cols
+
+		if is_target_row or is_target_col:
+			painter.save()
+			
+			# Configuro el color y grosor de la línea
+			pen = QPen(self.line_color)
+			pen.setWidth(2)
+			painter.setPen(pen)
+
+			# Dibujo la línea
+			rect = option.rect
+			if is_target_row:
+				painter.drawLine(rect.bottomLeft(), rect.bottomRight())
+			if is_target_col:
+				painter.drawLine(rect.topRight(), rect.bottomRight())
+				
+			painter.restore()
+
+
+
 class MainWindow(QMainWindow):
 	def __init__(self):
 		super().__init__()
@@ -986,6 +1042,16 @@ class MainWindow(QMainWindow):
 
 		# Establezco la pestaña de Camba como la inicial
 		self.tabWidget.setCurrentIndex(3)
+
+		# Inicializo base de datos y tabla de ventiladores
+		self.init_db()
+		self.load_fans_data()
+		self.tableWidget_fans.setItemDelegate(
+			ThickGridDelegate(
+				target_rows=(8,), 
+				parent=self.tableWidget_fans
+			)
+		)
 
 		# Señales de pushbuttons inferiores
 		self.pushButton_theme.clicked.connect(self.change_theme)
@@ -1047,20 +1113,18 @@ class MainWindow(QMainWindow):
 		self.lineEdit_search_camba.textEdited.connect(self.filter_products)
 		self.lineEdit_search_vtm.textEdited.connect(self.filter_products)
 
-		# Señales para abrir catálogo de TDC con doble clic
+		# Señales de tablewidgets
 		self.tableWidget_search_hh.itemDoubleClicked.connect(self.open_tdc_catalog)
 		self.tableWidget_defaults_hh.itemDoubleClicked.connect(self.open_tdc_catalog)
 		self.tableWidget_search_etma.itemDoubleClicked.connect(self.open_tdc_catalog)
 		self.tableWidget_defaults_etma.itemDoubleClicked.connect(self.open_tdc_catalog)
-
-		# Señales para abrir catálogo de VTM con doble clic
 		self.tableWidget_search_vtm.itemDoubleClicked.connect(self.open_vtm_catalog)
 		self.tableWidget_defaults_vtm.itemDoubleClicked.connect(self.open_vtm_catalog)
+		self.tableWidget_fans.itemChanged.connect(self.save_fan_cell)
 
 		# Configuraciones visuales varias
 		self.format_headers() # Configuro headers de tablas
 		self.initialize_theme()
-		# self.apply_theme('light') # Tema claro por defecto
 		self.showMaximized() # Ventana maximizada
 
 		# Comienzo comprobando actualizaciones
@@ -1455,8 +1519,10 @@ class MainWindow(QMainWindow):
 		# Cambio esquema de color de la app
 		if theme == 'dark':
 			app.styleHints().setColorScheme(Qt.ColorScheme.Dark)
+			self.tableWidget_fans.itemDelegate().set_line_color('#191919')
 		else:
 			app.styleHints().setColorScheme(Qt.ColorScheme.Light)
+			self.tableWidget_fans.itemDelegate().set_line_color('#c8c8c8')
 
 		# Actualizo ícono de botones
 		self.pushButton_theme.setIcon(QIcon(f'resources/icons/icon_mode_{theme}.svg'))
@@ -1475,7 +1541,7 @@ class MainWindow(QMainWindow):
 	def format_headers(self):
 		"""Distribuye el ancho de las columnas de todas las tablas."""
 
-		tables = (
+		brand_tables = (
 			self.tableWidget_search_hh,
 			self.tableWidget_defaults_hh,
 			self.tableWidget_search_etma,
@@ -1486,23 +1552,85 @@ class MainWindow(QMainWindow):
 			self.tableWidget_defaults_vtm
 		)
 
-		for table in tables:
-			is_4_cols = table in (
-				self.tableWidget_search_camba, 
-				self.tableWidget_defaults_camba, 
-				self.tableWidget_search_vtm, 
-				self.tableWidget_defaults_vtm)
-			
-			# Columna 0 (Código): Siempre fija
-			table.setColumnWidth(0, 110)
-			
-			if is_4_cols:
+		four_cols_tables = (
+			self.tableWidget_search_camba,
+			self.tableWidget_defaults_camba,
+			self.tableWidget_search_vtm,
+			self.tableWidget_defaults_vtm
+		)
+
+		for table in brand_tables:
+			header = table.horizontalHeader()
+
+			table.setColumnWidth(0, 110) # Columna 0 (Código): Fija
+
+			if table in four_cols_tables:
 				table.setColumnWidth(1, 400) # Columna 1 (Subcategoría): Fija
-				table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch) # Columna 2 (Descripción): Estirada
+				header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch) # Columna 2 (Descripción): Estirada
 				table.setColumnWidth(3, 180) # Columna 3 (Precio): Fija
 			else:
-				table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch) # Columna 1 (Descripción): Estirada
+				header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch) # Columna 1 (Descripción): Estirada
 				table.setColumnWidth(2, 180) # Columna 2 (Precio): Fija
+
+		# Tabla de ventiladores
+		fans_table = self.tableWidget_fans
+
+		fans_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+		for col in (0, 2, 3, 4):
+			fans_table.setColumnWidth(col, 150)
+
+
+	def init_db(self):
+		"""Crea la base de datos local y su contenido si no existen."""
+
+		DB_DIR.mkdir(parents=True, exist_ok=True)
+
+		with sqlite3.connect(DB_PATH) as conn:
+			cursor = conn.cursor()
+			cursor.execute('''
+				CREATE TABLE IF NOT EXISTS fans_data (
+					row   INTEGER,
+					col   INTEGER,
+					value TEXT,
+					PRIMARY KEY (row, col)
+				)
+			''')
+
+
+	def load_fans_data(self):
+		"""Carga los valores guardados al abrir la aplicación."""
+
+		# Bloqueo señales para no activar save_fan_cell()
+		self.tableWidget_fans.blockSignals(True)
+		
+		with sqlite3.connect(DB_PATH) as conn:
+			cursor = conn.cursor()
+			cursor.execute('SELECT row, col, value FROM fans_data')
+			
+			for row, col, value in cursor.fetchall():
+				item = self.tableWidget_fans.item(row, col)
+				if item:
+					item.setText(value)
+				else:
+					# Si la celda estaba vacía y sin item desde Qt Designer, lo creo
+					self.tableWidget_fans.setItem(row, col, QTableWidgetItem(value))
+					
+		self.tableWidget_fans.blockSignals(False)
+
+
+	def save_fan_cell(self, item):
+		"""Guarda automáticamente en la BD cada vez que el usuario edita una celda."""
+
+		row = item.row()
+		col = item.column()
+		value = item.text().strip()
+		
+		with sqlite3.connect(DB_PATH) as conn:
+			cursor = conn.cursor()
+			cursor.execute('''
+				INSERT OR REPLACE INTO fans_data (row, col, value)
+				VALUES (?, ?, ?)
+			''', (row, col, value))
 
 
 	def load_more_used(self, combo_box, all_products, most_used_products):
@@ -1721,7 +1849,7 @@ class MainWindow(QMainWindow):
 		- page_number: La página donde se quiere arrancar (por defecto 1).
 		"""
 
-		base_path = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'listas' / brand
+		base_path = LISTS_DIR / brand
 		pdf_file_path = None
 
 		if not base_path.exists():
@@ -1762,7 +1890,7 @@ class MainWindow(QMainWindow):
 		if pdf_file_path:
 			try:
 				# Intento con el navegador predeterminado
-				default_browser_exe = self.get_default_browser_exe()
+				default_browser_exe = get_default_browser_exe()
 				if default_browser_exe:
 					# Formateo la ruta de Windows a un formato URI que el navegador entienda
 					pdf_uri = f'file:///{str(pdf_file_path).replace(os.sep, "/")}#page={page_number}'
@@ -1786,34 +1914,11 @@ class MainWindow(QMainWindow):
 			)
 
 
-	def get_default_browser_exe(self):
-		"""
-		Consulta el Registro de Windows para obtener el ejecutable del navegador 
-		web predeterminado.
-		"""
-
-		try:
-			# Busco qué programa maneja los links de internet (HTTP)
-			reg_url = r'Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice'
-			with winreg.OpenKey(winreg.HKEY_CURRENT_USER, reg_url) as key:
-				prog_id = winreg.QueryValueEx(key, 'ProgId')[0]
-
-			# Busco la ruta del ejecutable para ese programa
-			reg_cmd = rf'{prog_id}\shell\open\command'
-			with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, reg_cmd) as key:
-				command = winreg.QueryValueEx(key, '')[0]
-
-			# Limpio la ruta para tener la ruta "pura" del ejecutable, sin parámetros
-			if command.startswith('"'):
-				return command.split('"')[1]
-			else:
-				return command.split(' ')[0]
-		except Exception:
-			return None
-
-
 	def open_tdc_catalog(self, item):
-		"""Abre el catálogo web forzando el inicio de sesión previo para obtener precios B2B."""
+		"""
+		Abre el catálogo web forzando el inicio de sesión previo para obtener precios
+		con descuento.
+		"""
 		
 		# 1. Extraigo el SKU de la tabla
 		table = self.sender() 
@@ -1827,17 +1932,19 @@ class MainWindow(QMainWindow):
 		# 2. Obtengo credenciales y el navegador predeterminado
 		email = os.getenv('USER_EMAIL')
 		password = os.getenv('USER_PASSWORD')
-		default_browser = self.get_default_browser_exe()
+		default_browser = get_default_browser_exe()
 
 		# Función interna que ejecutará Playwright en segundo plano
 		def run_playwright():
+			from playwright.sync_api import sync_playwright
+
 			with sync_playwright() as p:
-				user_data_dir = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'BrowserProfile'
+				user_data_dir = APP_DATA_DIR / 'BrowserProfile'
 				
 				is_new_browser = False
 				
 				try:
-					# 1. Intento conectarnos a un navegador que ya esté abierto
+					# 1. Intento conectarme a un navegador que ya esté abierto
 					browser = p.chromium.connect_over_cdp('http://localhost:9222')
 					context = browser.contexts[0]
 					page = context.new_page()
@@ -1853,12 +1960,22 @@ class MainWindow(QMainWindow):
 					if default_browser:
 						launch_args['executable_path'] = default_browser
 					else:
-						launch_args['channel'] = 'chrome' 
+						launch_args['channel'] = 'msedge' 
 
 					try:
 						context = p.chromium.launch_persistent_context(**launch_args)
-						page = context.pages[0]
+						
+						# 1. Obligo a crear una pestaña nueva y segura para el producto actual
+						page = context.new_page()
 						is_new_browser = True
+						
+						# 2. Limpieza: cierro la pestaña "about:blank" inicial 
+						for tab in context.pages:
+							if tab != page and tab.url == 'about:blank':
+								try:
+									tab.close()
+								except:
+									pass
 					except Exception as e:
 						print(f'Error al lanzar el navegador: {e}')
 						return
@@ -1868,7 +1985,7 @@ class MainWindow(QMainWindow):
 				page.goto(product_url)
 
 				try:
-					# Esperamos a que la página cargue para que el botón exista en el HTML
+					# Espero a que la página cargue para que el botón exista en el HTML
 					page.wait_for_load_state('networkidle', timeout=5000)
 				except:
 					pass
@@ -1897,10 +2014,11 @@ class MainWindow(QMainWindow):
 						print(f'Error en el proceso de auto-login: {e}')
 
 				# --- FINALIZAR ---
-				try:
-					page.wait_for_event('close', timeout=0)
-				except:
-					pass
+				if is_new_browser:
+					try:
+						page.wait_for_event('close', timeout=0)
+					except:
+						pass
 
 		# Ejecuto Playwright en un hilo separado
 		threading.Thread(target=run_playwright, daemon=True).start()
@@ -1919,78 +2037,75 @@ class MainWindow(QMainWindow):
 		sku = sku_item.text()
 
 		# 2. Obtengo la ruta del ejecutable del navegador PREDETERMINADO del sistema
-		default_browser_exe = self.get_default_browser_exe()
+		default_browser_exe = get_default_browser_exe()
 
 		# Función interna que ejecutará Playwright en segundo plano
 		def run_playwright():
 			from playwright.sync_api import sync_playwright
-			import os
-			from pathlib import Path
-			
+
 			with sync_playwright() as p:
 				# Carpeta de perfil persistente (aislada para evitar bloqueos)
-				user_data_dir = Path(os.getenv('LOCALAPPDATA')) / 'PrecioFacil' / 'BrowserProfile'
+				user_data_dir = APP_DATA_DIR / 'BrowserProfile'
 				
 				# Bandera para saber si lanzamos el navegador o abrimos pestaña
 				is_new_browser = False
 				
 				try:
-					# 1. Intentamos conectarnos a un navegador que ya esté abierto (CDP)
-					# Si esto funciona, VTM se abre en una pestaña nueva rapidísimo.
+					# 1. Intento conectarme a un navegador que ya esté abierto
 					browser = p.chromium.connect_over_cdp('http://localhost:9222')
 					context = browser.contexts[0]
 					page = context.new_page()
 					
 				except Exception:
-					# 2. Si falla, el navegador estaba cerrado. Lo lanzamos de cero.
-					# VTM no requiere login, pero usar el perfil persistente y el puerto 9222
-					# es fundamental para que el segundo doble clic abra una pestaña.
+					# 2. Si falla, lo lanzo de cero
 					launch_args = {
 						'user_data_dir': user_data_dir,
 						'headless': False,
-						'args': [
-							'--start-maximized', 
-							'--remote-debugging-port=9222' # <-- Abrimos el canal para futuras conexiones
-						],
+						'args': ['--start-maximized', '--remote-debugging-port=9222'],
 						'no_viewport': True
 					}
 
-					# --- AQUÍ ESTÁ LA CLAVE ---
-					# Si encontramos tu navegador predeterminado, se lo pasamos a Playwright
 					if default_browser_exe:
 						launch_args['executable_path'] = default_browser_exe
+					else:
+						launch_args['channel'] = 'msedge'
 					
 					try:
-						# Lanzamos el perfil persistente usando el ejecutable indicado
 						context = p.chromium.launch_persistent_context(**launch_args)
-						# Usamos la primera pestaña que se abre automáticamente
-						page = context.pages[0]
+						
+						# 1. Obligo a crear una pestaña nueva y segura para el producto actual
+						page = context.new_page()
 						is_new_browser = True
+						
+						# 2. Limpieza: cierro la pestaña "about:blank" inicial 
+						for tab in context.pages:
+							if tab != page and tab.url == 'about:blank':
+								try:
+									tab.close()
+								except:
+									pass
 					except Exception as e:
-						print(f"Error al lanzar el navegador predeterminado para VTM: {e}")
+						print(f'Error al lanzar el navegador: {e}')
 						return
 				
 				# --- PASO 1: NAVEGAR A LA PÁGINA DEL CATÁLOGO ---
 				# Dado que VTM no tiene URLs directas por SKU y no requiere login,
-				# vamos a la raíz de la lista.
+				# voy a la raíz de la lista.
 				page.goto('https://vtm-lista.pages.dev/')
 
 				# --- PASO 2: BUSCAR EL PRODUCTO ---
 				try:
-					# Esperamos a que el buscador (identificado por su clase CSS) esté visible
-					# El usuario proporcionó el selector: input.toolbar-search-input
+					# Espero a que el buscador (identificado por su clase CSS) esté visible
 					search_input = page.locator('input.toolbar-search-input')
 					search_input.wait_for(state='visible', timeout=10000)
 					
-					# Rellenamos el SKU del producto
+					# Relleno el SKU del producto
 					search_input.fill(sku)
 					
-					# Presionamos "Enter" para buscar
+					# Presiono "Enter" para buscar
 					page.press('input.toolbar-search-input', 'Enter')
 					
 					# IMPORTANTE: Mantenemos vivo el hilo principal del navegador si lo lanzamos de cero.
-					# Si solo abrimos una pestaña (connect_over_cdp), el hilo principal ya existe
-					# en la otra ventana y no necesitamos esperar aquí.
 					if is_new_browser:
 						page.wait_for_event('close', timeout=0)
 						
@@ -2001,7 +2116,6 @@ class MainWindow(QMainWindow):
 						page.wait_for_event('close', timeout=0)
 
 		# Ejecuto Playwright en un hilo separado
-		import threading
 		threading.Thread(target=run_playwright, daemon=True).start()
 
 
